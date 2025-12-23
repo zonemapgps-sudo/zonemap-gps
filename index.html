@@ -1,11 +1,11 @@
 <!DOCTYPE html>
-<html>
+<html lang="fr">
 <head>
-    <title>GPS Tracker</title>
+    <title>Mon Traceur GPS Live</title>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <!-- Sources Leaflet via CDNJS (Très stable) -->
+    <!-- Sources Leaflet via CDNJS (Stables et Rapides) -->
     <link rel="stylesheet" href="cdnjs.cloudflare.com" />
     <script src="cdnjs.cloudflare.com"></script>
 
@@ -14,59 +14,87 @@
         #map { 
             height: 100vh; 
             width: 100vw; 
-            background-color: #e5e3df; /* Couleur de fond si la carte ne charge pas */
+            background-color: #e5e3df; 
         }
         .info {
             position: absolute; top: 10px; left: 10px; z-index: 1000;
-            background: rgba(255,255,255,0.9); padding: 10px;
-            border-radius: 5px; font-family: sans-serif;
+            background: rgba(255,255,255,0.95); padding: 15px;
+            border-radius: 8px; font-family: sans-serif;
+            box-shadow: 0 0 15px rgba(0,0,0,0.2);
+            max-width: 200px;
         }
+        button {
+            background-color: #007bff; color: white; border: none;
+            padding: 10px; border-radius: 5px; width: 100%;
+            font-weight: bold; cursor: pointer; margin-top: 10px;
+        }
+        button:active { background-color: #0056b3; }
     </style>
 </head>
 <body>
 
 <div class="info">
-    <b>GPS Status:</b> <span id="status">Waiting...</span><br>
-    <b>Points:</b> <span id="count">0</span>
+    <b>Statut :</b> <span id="status">En attente</span><br>
+    <b>Points :</b> <span id="count">0</span><br>
+    <button id="startBtn" onclick="startGPS()">LANCER LE TRAÇAGE</button>
 </div>
 
 <div id="map"></div>
 
 <script>
-    // 1. Initialisation forcée sur une vue globale
+    // 1. Initialisation de la carte (Vue sur la France par défaut)
     var map = L.map('map').setView([46.6, 2.2], 5);
 
-    // 2. Chargement des tuiles OpenStreetMap
-    L.tileLayer('tile.openstreetmap.org{z}/{x}/{y}.png', {
+    // 2. Chargement des tuiles OpenStreetMap avec HTTPS
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 19,
         attribution: '© OpenStreetMap'
     }).addTo(map);
 
     var route = [];
-    var polyline = L.polyline([], {color: 'red'}).addTo(map);
+    var polyline = L.polyline([], {color: 'red', weight: 5}).addTo(map);
     var marker = L.marker([0,0]).addTo(map);
 
     function onLocationFound(e) {
         document.getElementById('status').innerHTML = "Signal OK ✅";
+        document.getElementById('status').style.color = "green";
+        
         var latlng = e.latlng;
         route.push(latlng);
         polyline.setLatLngs(route);
         marker.setLatLng(latlng);
         document.getElementById('count').innerHTML = route.length;
+        
+        // On centre la carte sur la position trouvée
         map.setView(latlng, 16);
     }
 
     function onLocationError(e) {
-        document.getElementById('status').innerHTML = "Error: " + e.message;
+        document.getElementById('status').innerHTML = "Erreur : " + e.message;
+        document.getElementById('status').style.color = "red";
     }
 
     map.on('locationfound', onLocationFound);
     map.on('locationerror', onLocationError);
 
-    // Démarrage du traçage
-    map.locate({watch: true, enableHighAccuracy: true});
+    // 3. Fonction déclenchée par le bouton
+    function startGPS() {
+        document.getElementById('status').innerHTML = "Recherche...";
+        document.getElementById('startBtn').innerHTML = "Traçage actif";
+        document.getElementById('startBtn').style.backgroundColor = "#28a745";
+
+        // Demande de position au navigateur
+        map.locate({
+            watch: true, 
+            enableHighAccuracy: false, // 'false' permet de capter via Wi-Fi/4G à l'intérieur
+            timeout: 60000,           // On laisse 60 secondes pour trouver le signal
+            maximumAge: 0
+        });
+    }
 </script>
 
 </body>
 </html>
+
+
 
