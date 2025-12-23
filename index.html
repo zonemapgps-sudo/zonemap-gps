@@ -1,30 +1,35 @@
 <!DOCTYPE html>
-<html>
+<html lang="fr">
 <head>
-    <title>GPS Tracker</title>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mon Traceur GPS</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 
-    <!-- LIENS CORRIGÉS AVEC HTTPS:// COMPLET -->
-    <link rel="stylesheet" href="unpkg.com" />
-    <script src="unpkg.com"></script>
+    <!-- LIENS ABSOLUS AVEC HTTPS (Source JSDelivr) -->
+    <link rel="stylesheet" href="cdn.jsdelivr.net" />
+    <script src="cdn.jsdelivr.net"></script>
 
     <style>
-        html, body { height: 100%; margin: 0; padding: 0; }
-        #map { height: 100vh; width: 100vw; background: #eee; }
-        .info {
+        html, body { height: 100%; margin: 0; padding: 0; background: #f0f0f0; }
+        #map { position: absolute; top: 0; bottom: 0; width: 100%; z-index: 1; }
+        .ui-panel {
             position: absolute; top: 10px; left: 10px; z-index: 1000;
-            background: white; padding: 15px; border-radius: 8px;
-            font-family: sans-serif; box-shadow: 0 0 10px rgba(0,0,0,0.2);
+            background: white; padding: 15px; border-radius: 10px;
+            font-family: sans-serif; box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+            width: 200px;
         }
-        button { padding: 10px; cursor: pointer; width: 100%; }
+        button { 
+            width: 100%; padding: 12px; margin-top: 10px;
+            background: #007bff; color: white; border: none;
+            border-radius: 5px; font-weight: bold; cursor: pointer;
+        }
     </style>
 </head>
 <body>
 
-<div class="info">
-    <div id="status">Chargement...</div>
-    <button onclick="lancerGPS()">ACTIVER LE GPS</button>
+<div class="ui-panel">
+    <div id="status" style="font-weight: bold; color: #555;">Initialisation...</div>
+    <button id="mainBtn" onclick="activerGPS()">ACTIVER LE GPS</button>
 </div>
 
 <div id="map"></div>
@@ -32,45 +37,64 @@
 <script>
     var map, route = [], polyline, marker;
 
-    // On attend que la page soit prête
+    // Fonction de démarrage lancée au chargement de la page
     window.onload = function() {
+        console.log("Vérification de Leaflet...");
+        
         if (typeof L === 'undefined') {
-            document.getElementById('status').innerHTML = "Erreur de chargement";
+            document.getElementById('status').innerHTML = "❌ Erreur : Librairie non chargée. Vérifiez votre connexion.";
+            document.getElementById('status').style.color = "red";
             return;
         }
+
+        document.getElementById('status').innerHTML = "✅ Système prêt";
         
-        document.getElementById('status').innerHTML = "Prêt à tracer";
+        // Création de la carte
+        map = L.map('map').setView([46.6033, 1.8883], 5);
 
-        // Initialisation de la carte
-        map = L.map('map').setView([46.6, 2.2], 5);
-
+        // Ajout des tuiles (images) de la carte
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OSM'
+            attribution: '© OpenStreetMap'
         }).addTo(map);
 
-        polyline = L.polyline([], {color: 'red'}).addTo(map);
+        polyline = L.polyline([], {color: 'red', weight: 5}).addTo(map);
         marker = L.marker([0,0]).addTo(map);
     };
 
-    function lancerGPS() {
-        document.getElementById('status').innerHTML = "Recherche...";
-        
+    function activerGPS() {
+        if (!map) {
+            alert("La carte n'est pas encore prête !");
+            return;
+        }
+
+        document.getElementById('status').innerHTML = "🛰️ Recherche GPS...";
+        document.getElementById('mainBtn').disabled = true;
+        document.getElementById('mainBtn').style.background = "#ccc";
+
+        // Lancement de la localisation
         map.locate({
             watch: true,
-            enableHighAccuracy: false, // Plus rapide pour le test
+            enableHighAccuracy: false, // On utilise le mode basse précision pour capter plus vite
             timeout: 30000
         });
 
         map.on('locationfound', function(e) {
             document.getElementById('status').innerHTML = "📍 Signal OK";
-            route.push(e.latlng);
+            document.getElementById('status').style.color = "green";
+            
+            var latlng = e.latlng;
+            route.push(latlng);
             polyline.setLatLngs(route);
-            marker.setLatLng(e.latlng);
-            map.setView(e.latlng, 16);
+            marker.setLatLng(latlng);
+            
+            // On suit l'utilisateur
+            map.setView(latlng, 16);
         });
 
         map.on('locationerror', function(e) {
-            document.getElementById('status').innerHTML = "Erreur: " + e.message;
+            document.getElementById('status').innerHTML = "⚠️ " + e.message;
+            document.getElementById('mainBtn').disabled = false;
+            document.getElementById('mainBtn').style.background = "#007bff";
         });
     }
 </script>
