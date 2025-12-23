@@ -1,95 +1,86 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-    <title>Mon Traceur GPS Live</title>
+    <title>Traceur GPS</title>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 
-    <!-- Sources Leaflet via CDNJS (Stables et Rapides) -->
-    <link rel="stylesheet" href="cdnjs.cloudflare.com" />
-    <script src="cdnjs.cloudflare.com"></script>
+    <!-- LIENS OFFICIELS LEAFLET (UNPKG) -->
+    <link rel="stylesheet" href="unpkg.com" />
+    <script src="unpkg.com"></script>
 
     <style>
         html, body { height: 100%; margin: 0; padding: 0; }
-        #map { 
-            height: 100vh; 
-            width: 100vw; 
-            background-color: #e5e3df; 
-        }
+        #map { height: 100vh; width: 100vw; background: #ddd; }
         .info {
             position: absolute; top: 10px; left: 10px; z-index: 1000;
-            background: rgba(255,255,255,0.95); padding: 15px;
-            border-radius: 8px; font-family: sans-serif;
-            box-shadow: 0 0 15px rgba(0,0,0,0.2);
-            max-width: 200px;
+            background: white; padding: 15px; border-radius: 8px;
+            font-family: sans-serif; box-shadow: 0 0 10px rgba(0,0,0,0.3);
         }
-        button {
-            background-color: #007bff; color: white; border: none;
-            padding: 10px; border-radius: 5px; width: 100%;
-            font-weight: bold; cursor: pointer; margin-top: 10px;
+        button { 
+            padding: 10px; background: #007bff; color: white; 
+            border: none; border-radius: 4px; width: 100%; cursor: pointer;
         }
-        button:active { background-color: #0056b3; }
     </style>
 </head>
 <body>
 
 <div class="info">
-    <b>Statut :</b> <span id="status">En attente</span><br>
+    <b>Statut :</b> <span id="status">Chargement...</span><br>
     <b>Points :</b> <span id="count">0</span><br>
-    <button id="startBtn" onclick="startGPS()">LANCER LE TRAÇAGE</button>
+    <button id="btn" onclick="startGPS()">ACTIVER LE GPS</button>
 </div>
 
 <div id="map"></div>
 
 <script>
-    // 1. Initialisation de la carte (Vue sur la France par défaut)
-    var map = L.map('map').setView([46.6, 2.2], 5);
+    var map, route = [], polyline, marker;
 
-    // 2. Chargement des tuiles OpenStreetMap avec HTTPS
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 19,
-        attribution: '© OpenStreetMap'
-    }).addTo(map);
+    // Vérification que Leaflet est chargé
+    window.onload = function() {
+        if (typeof L === 'undefined') {
+            document.getElementById('status').innerHTML = "Erreur: Leaflet non chargé";
+            document.getElementById('status').style.color = "red";
+            return;
+        }
 
-    var route = [];
-    var polyline = L.polyline([], {color: 'red', weight: 5}).addTo(map);
-    var marker = L.marker([0,0]).addTo(map);
+        document.getElementById('status').innerHTML = "Prêt";
 
-    function onLocationFound(e) {
-        document.getElementById('status').innerHTML = "Signal OK ✅";
-        document.getElementById('status').style.color = "green";
-        
-        var latlng = e.latlng;
-        route.push(latlng);
-        polyline.setLatLngs(route);
-        marker.setLatLng(latlng);
-        document.getElementById('count').innerHTML = route.length;
-        
-        // On centre la carte sur la position trouvée
-        map.setView(latlng, 16);
-    }
+        // Initialisation de la carte
+        map = L.map('map').setView([46.6, 2.2], 5);
 
-    function onLocationError(e) {
-        document.getElementById('status').innerHTML = "Erreur : " + e.message;
-        document.getElementById('status').style.color = "red";
-    }
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap'
+        }).addTo(map);
 
-    map.on('locationfound', onLocationFound);
-    map.on('locationerror', onLocationError);
+        polyline = L.polyline([], {color: 'red', weight: 5}).addTo(map);
+        marker = L.marker([0,0]).addTo(map);
+    };
 
-    // 3. Fonction déclenchée par le bouton
     function startGPS() {
-        document.getElementById('status').innerHTML = "Recherche...";
-        document.getElementById('startBtn').innerHTML = "Traçage actif";
-        document.getElementById('startBtn').style.backgroundColor = "#28a745";
-
-        // Demande de position au navigateur
+        document.getElementById('status').innerHTML = "Recherche signal...";
+        
         map.locate({
-            watch: true, 
-            enableHighAccuracy: false, // 'false' permet de capter via Wi-Fi/4G à l'intérieur
-            timeout: 60000,           // On laisse 60 secondes pour trouver le signal
-            maximumAge: 0
+            watch: true,
+            enableHighAccuracy: false, // Utilise WiFi/Antennes (mieux pour tester à l'intérieur)
+            timeout: 30000
         });
+
+        map.on('locationfound', function(e) {
+            document.getElementById('status').innerHTML = "Signal OK ✅";
+            var latlng = e.latlng;
+            route.push(latlng);
+            polyline.setLatLngs(route);
+            marker.setLatLng(latlng);
+            document.getElementById('count').innerText = route.length;
+            map.setView(latlng, 16);
+        });
+
+        map.on('locationerror', function(e) {
+            document.getElementById('status').innerHTML = "Erreur: " + e.message;
+        });
+
+        document.getElementById('btn').style.display = 'none'; // Cache le bouton après activation
     }
 </script>
 
