@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="utf-8">
+    <title>Mon Traceur GPS Live Leaflet</title>
+    <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
+    <!-- Importation de Leaflet CSS -->
+    <link rel="stylesheet" href="unpkg.com"
+          integrity="sha256-p4NxAoDlSLAMovZCRgfD0bbLyT+UuHb/Px0HZPOjgvc="
+          crossorigin=""/>
+    <!-- Importation de Leaflet JS -->
+    <script src="unpkg.com"
+            integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+            crossorigin=""></script>
+    <style>
+        body { margin: 0; padding: 0; }
+        #map { position: absolute; top: 0; bottom: 0; width: 100%; }
+        .controls {
+            position: absolute; top: 10px; left: 10px; z-index: 1000; /* Z-index élevé pour être au-dessus de la carte */
+            background: white; padding: 15px; border-radius: 8px; font-family: sans-serif;
+            box-shadow: 0 0 10px rgba(0,0,0,0.2);
+        }
+        .status { color: green; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div class="controls">
+    <b>Traçage en direct (Gratuit)</b><br>
+    Statut: <span id="status" class="status">Recherche GPS...</span><br>
+    Points enregistrés: <span id="count">0</span>
+</div>
+<div id="map"></div>
+
+<script>
+    let routeData = []; // Tableau qui va stocker les coordonnées [lat, lng] (Attention, Leaflet utilise Lat/Lng)
+
+    // 1. Initialisation de la carte (coordonnées inversées par rapport à Mapbox : [lat, lng])
+    const map = L.map('map').setView([48.8566, 2.3522], 13);
+
+    // 2. Ajout du fond de carte OpenStreetMap
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '© <a href="www.openstreetmap.org">OpenStreetMap</a>'
+    }).addTo(map);
+
+    // Variable pour stocker la ligne tracée dynamiquement
+    let polyline = L.polyline(routeData, {color: 'red'}).addTo(map);
+
+    // 3. Lancement du traçage GPS
+    if ("geolocation" in navigator) {
+        // watchPosition dans Leaflet utilise la fonction onLocationFound/onError
+        map.locate({setView: true, watch: true, enableHighAccuracy: true, maximumAge: 0, timeout: 5000});
+
+        map.on('locationfound', function (e) {
+            const lat = e.latlng.lat;
+            const lng = e.latlng.lng;
+            const newPoint = [lat, lng];
+
+            // Ajouter le point au tableau
+            routeData.push(newPoint);
+            
+            // Mettre à jour la ligne sur la carte
+            polyline.setLatLngs(routeData);
+
+            // Mise à jour de l'affichage
+            document.getElementById('status').innerText = "En cours...";
+            document.getElementById('count').innerText = routeData.length;
+
+            // Centrer la carte sur la nouvelle position (setView prend [lat, lng])
+            map.setView(newPoint, map.getZoom() || 15);
+        });
+
+        map.on('locationerror', function (e) {
+            console.error("Erreur GPS:", e.message);
+            document.getElementById('status').innerText = "Erreur GPS";
+            document.getElementById('status').style.color = "red";
+        });
+
+    } else {
+        alert("La géolocalisation n'est pas supportée par votre navigateur.");
+    }
+</script>
+
+</body>
+</html>
