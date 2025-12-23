@@ -1,83 +1,70 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html>
 <head>
-    <meta charset="utf-8">
-    <title>Mon Traceur GPS Live</title>
-    <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
-    
-    <!-- CORRECTION DES LIENS LEAFLET -->
-    <link rel="stylesheet" href="unpkg.com" />
-    <script src="unpkg.com"></script>
+    <title>GPS Tracker</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- Sources Leaflet via CDNJS (Très stable) -->
+    <link rel="stylesheet" href="cdnjs.cloudflare.com" />
+    <script src="cdnjs.cloudflare.com"></script>
 
     <style>
-        body { margin: 0; padding: 0; }
-        #map { position: absolute; top: 0; bottom: 0; width: 100%; }
-        .controls {
-            position: absolute; top: 10px; left: 10px; z-index: 1000;
-            background: white; padding: 15px; border-radius: 8px; font-family: sans-serif;
-            box-shadow: 0 0 10px rgba(0,0,0,0.2);
+        html, body { height: 100%; margin: 0; padding: 0; }
+        #map { 
+            height: 100vh; 
+            width: 100vw; 
+            background-color: #e5e3df; /* Couleur de fond si la carte ne charge pas */
         }
-        .status { color: green; font-weight: bold; }
+        .info {
+            position: absolute; top: 10px; left: 10px; z-index: 1000;
+            background: rgba(255,255,255,0.9); padding: 10px;
+            border-radius: 5px; font-family: sans-serif;
+        }
     </style>
 </head>
 <body>
 
-<div class="controls">
-    <b>Traçage en direct</b><br>
-    Statut: <span id="status" class="status">Recherche GPS...</span><br>
-    Points: <span id="count">0</span>
+<div class="info">
+    <b>GPS Status:</b> <span id="status">Waiting...</span><br>
+    <b>Points:</b> <span id="count">0</span>
 </div>
+
 <div id="map"></div>
 
 <script>
-    let routeData = [];
-    
-    // 1. Initialisation de la carte sur la France par défaut
-    const map = L.map('map').setView([46.6033, 1.8883], 6);
+    // 1. Initialisation forcée sur une vue globale
+    var map = L.map('map').setView([46.6, 2.2], 5);
 
-    // 2. Fond de carte OpenStreetMap
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    // 2. Chargement des tuiles OpenStreetMap
+    L.tileLayer('tile.openstreetmap.org{z}/{x}/{y}.png', {
+        maxZoom: 19,
         attribution: '© OpenStreetMap'
     }).addTo(map);
 
-    // Ligne de trajet et Marqueur de position actuelle
-    let polyline = L.polyline([], {color: 'red', weight: 5}).addTo(map);
-    let marker = L.marker([0, 0]).addTo(map);
+    var route = [];
+    var polyline = L.polyline([], {color: 'red'}).addTo(map);
+    var marker = L.marker([0,0]).addTo(map);
 
-    // 3. Fonction de mise à jour
-    function updatePosition(e) {
-        const lat = e.latlng.lat;
-        const lng = e.latlng.lng;
-        const newPoint = [lat, lng];
-
-        // On n'ajoute le point que s'il est différent du dernier (évite les sauts)
-        if (routeData.length === 0 || routeData[routeData.length - 1][0] !== lat) {
-            routeData.push(newPoint);
-            polyline.setLatLngs(routeData);
-            document.getElementById('count').innerText = routeData.length;
-        }
-
-        // Déplacer le marqueur et centrer
-        marker.setLatLng(newPoint);
-        document.getElementById('status').innerText = "Signal OK";
-        document.getElementById('status').style.color = "green";
+    function onLocationFound(e) {
+        document.getElementById('status').innerHTML = "Signal OK ✅";
+        var latlng = e.latlng;
+        route.push(latlng);
+        polyline.setLatLngs(route);
+        marker.setLatLng(latlng);
+        document.getElementById('count').innerHTML = route.length;
+        map.setView(latlng, 16);
     }
 
-    // 4. Lancement du GPS
-    map.locate({
-        setView: true, 
-        watch: true, 
-        enableHighAccuracy: true,
-        timeout: 10000
-    });
+    function onLocationError(e) {
+        document.getElementById('status').innerHTML = "Error: " + e.message;
+    }
 
-    map.on('locationfound', updatePosition);
+    map.on('locationfound', onLocationFound);
+    map.on('locationerror', onLocationError);
 
-    map.on('locationerror', (e) => {
-        console.error(e.message);
-        document.getElementById('status').innerText = "Erreur signal (GPS coupé ?)";
-        document.getElementById('status').style.color = "red";
-    });
+    // Démarrage du traçage
+    map.locate({watch: true, enableHighAccuracy: true});
 </script>
 
 </body>
