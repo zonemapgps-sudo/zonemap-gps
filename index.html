@@ -1,34 +1,30 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html>
 <head>
-    <title>Traceur GPS</title>
+    <title>GPS Tracker</title>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <!-- LIENS OFFICIELS LEAFLET (UNPKG) -->
+    <!-- LIENS CORRIGÉS AVEC HTTPS:// COMPLET -->
     <link rel="stylesheet" href="unpkg.com" />
     <script src="unpkg.com"></script>
 
     <style>
         html, body { height: 100%; margin: 0; padding: 0; }
-        #map { height: 100vh; width: 100vw; background: #ddd; }
+        #map { height: 100vh; width: 100vw; background: #eee; }
         .info {
             position: absolute; top: 10px; left: 10px; z-index: 1000;
             background: white; padding: 15px; border-radius: 8px;
-            font-family: sans-serif; box-shadow: 0 0 10px rgba(0,0,0,0.3);
+            font-family: sans-serif; box-shadow: 0 0 10px rgba(0,0,0,0.2);
         }
-        button { 
-            padding: 10px; background: #007bff; color: white; 
-            border: none; border-radius: 4px; width: 100%; cursor: pointer;
-        }
+        button { padding: 10px; cursor: pointer; width: 100%; }
     </style>
 </head>
 <body>
 
 <div class="info">
-    <b>Statut :</b> <span id="status">Chargement...</span><br>
-    <b>Points :</b> <span id="count">0</span><br>
-    <button id="btn" onclick="startGPS()">ACTIVER LE GPS</button>
+    <div id="status">Chargement...</div>
+    <button onclick="lancerGPS()">ACTIVER LE GPS</button>
 </div>
 
 <div id="map"></div>
@@ -36,56 +32,48 @@
 <script>
     var map, route = [], polyline, marker;
 
-    // Vérification que Leaflet est chargé
+    // On attend que la page soit prête
     window.onload = function() {
         if (typeof L === 'undefined') {
-            document.getElementById('status').innerHTML = "Erreur: Leaflet non chargé";
-            document.getElementById('status').style.color = "red";
+            document.getElementById('status').innerHTML = "Erreur de chargement";
             return;
         }
-
-        document.getElementById('status').innerHTML = "Prêt";
+        
+        document.getElementById('status').innerHTML = "Prêt à tracer";
 
         // Initialisation de la carte
         map = L.map('map').setView([46.6, 2.2], 5);
 
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap'
+            attribution: '© OSM'
         }).addTo(map);
 
-        polyline = L.polyline([], {color: 'red', weight: 5}).addTo(map);
+        polyline = L.polyline([], {color: 'red'}).addTo(map);
         marker = L.marker([0,0]).addTo(map);
     };
 
-    function startGPS() {
-        document.getElementById('status').innerHTML = "Recherche signal...";
+    function lancerGPS() {
+        document.getElementById('status').innerHTML = "Recherche...";
         
         map.locate({
             watch: true,
-            enableHighAccuracy: false, // Utilise WiFi/Antennes (mieux pour tester à l'intérieur)
+            enableHighAccuracy: false, // Plus rapide pour le test
             timeout: 30000
         });
 
         map.on('locationfound', function(e) {
-            document.getElementById('status').innerHTML = "Signal OK ✅";
-            var latlng = e.latlng;
-            route.push(latlng);
+            document.getElementById('status').innerHTML = "📍 Signal OK";
+            route.push(e.latlng);
             polyline.setLatLngs(route);
-            marker.setLatLng(latlng);
-            document.getElementById('count').innerText = route.length;
-            map.setView(latlng, 16);
+            marker.setLatLng(e.latlng);
+            map.setView(e.latlng, 16);
         });
 
         map.on('locationerror', function(e) {
             document.getElementById('status').innerHTML = "Erreur: " + e.message;
         });
-
-        document.getElementById('btn').style.display = 'none'; // Cache le bouton après activation
     }
 </script>
 
 </body>
 </html>
-
-
-
