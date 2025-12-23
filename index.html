@@ -2,21 +2,18 @@
 <html lang="fr">
 <head>
     <meta charset="utf-8">
-    <title>Mon Traceur GPS Live Leaflet</title>
+    <title>Mon Traceur GPS Live</title>
     <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
-    <!-- Importation de Leaflet CSS -->
-    <link rel="stylesheet" href="unpkg.com"
-          integrity="sha256-p4NxAoDlSLAMovZCRgfD0bbLyT+UuHb/Px0HZPOjgvc="
-          crossorigin=""/>
-    <!-- Importation de Leaflet JS -->
-    <script src="unpkg.com"
-            integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
-            crossorigin=""></script>
+    
+    <!-- CORRECTION DES LIENS LEAFLET -->
+    <link rel="stylesheet" href="unpkg.com" />
+    <script src="unpkg.com"></script>
+
     <style>
         body { margin: 0; padding: 0; }
         #map { position: absolute; top: 0; bottom: 0; width: 100%; }
         .controls {
-            position: absolute; top: 10px; left: 10px; z-index: 1000; /* Z-index élevé pour être au-dessus de la carte */
+            position: absolute; top: 10px; left: 10px; z-index: 1000;
             background: white; padding: 15px; border-radius: 8px; font-family: sans-serif;
             box-shadow: 0 0 10px rgba(0,0,0,0.2);
         }
@@ -26,61 +23,63 @@
 <body>
 
 <div class="controls">
-    <b>Traçage en direct (Gratuit)</b><br>
+    <b>Traçage en direct</b><br>
     Statut: <span id="status" class="status">Recherche GPS...</span><br>
-    Points enregistrés: <span id="count">0</span>
+    Points: <span id="count">0</span>
 </div>
 <div id="map"></div>
 
 <script>
-    let routeData = []; // Tableau qui va stocker les coordonnées [lat, lng] (Attention, Leaflet utilise Lat/Lng)
+    let routeData = [];
+    
+    // 1. Initialisation de la carte sur la France par défaut
+    const map = L.map('map').setView([46.6033, 1.8883], 6);
 
-    // 1. Initialisation de la carte (coordonnées inversées par rapport à Mapbox : [lat, lng])
-    const map = L.map('map').setView([48.8566, 2.3522], 13);
-
-    // 2. Ajout du fond de carte OpenStreetMap
+    // 2. Fond de carte OpenStreetMap
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 19,
-        attribution: '© <a href="www.openstreetmap.org">OpenStreetMap</a>'
+        attribution: '© OpenStreetMap'
     }).addTo(map);
 
-    // Variable pour stocker la ligne tracée dynamiquement
-    let polyline = L.polyline(routeData, {color: 'red'}).addTo(map);
+    // Ligne de trajet et Marqueur de position actuelle
+    let polyline = L.polyline([], {color: 'red', weight: 5}).addTo(map);
+    let marker = L.marker([0, 0]).addTo(map);
 
-    // 3. Lancement du traçage GPS
-    if ("geolocation" in navigator) {
-        // watchPosition dans Leaflet utilise la fonction onLocationFound/onError
-        map.locate({setView: true, watch: true, enableHighAccuracy: true, maximumAge: 0, timeout: 5000});
+    // 3. Fonction de mise à jour
+    function updatePosition(e) {
+        const lat = e.latlng.lat;
+        const lng = e.latlng.lng;
+        const newPoint = [lat, lng];
 
-        map.on('locationfound', function (e) {
-            const lat = e.latlng.lat;
-            const lng = e.latlng.lng;
-            const newPoint = [lat, lng];
-
-            // Ajouter le point au tableau
+        // On n'ajoute le point que s'il est différent du dernier (évite les sauts)
+        if (routeData.length === 0 || routeData[routeData.length - 1][0] !== lat) {
             routeData.push(newPoint);
-            
-            // Mettre à jour la ligne sur la carte
             polyline.setLatLngs(routeData);
-
-            // Mise à jour de l'affichage
-            document.getElementById('status').innerText = "En cours...";
             document.getElementById('count').innerText = routeData.length;
+        }
 
-            // Centrer la carte sur la nouvelle position (setView prend [lat, lng])
-            map.setView(newPoint, map.getZoom() || 15);
-        });
-
-        map.on('locationerror', function (e) {
-            console.error("Erreur GPS:", e.message);
-            document.getElementById('status').innerText = "Erreur GPS";
-            document.getElementById('status').style.color = "red";
-        });
-
-    } else {
-        alert("La géolocalisation n'est pas supportée par votre navigateur.");
+        // Déplacer le marqueur et centrer
+        marker.setLatLng(newPoint);
+        document.getElementById('status').innerText = "Signal OK";
+        document.getElementById('status').style.color = "green";
     }
+
+    // 4. Lancement du GPS
+    map.locate({
+        setView: true, 
+        watch: true, 
+        enableHighAccuracy: true,
+        timeout: 10000
+    });
+
+    map.on('locationfound', updatePosition);
+
+    map.on('locationerror', (e) => {
+        console.error(e.message);
+        document.getElementById('status').innerText = "Erreur signal (GPS coupé ?)";
+        document.getElementById('status').style.color = "red";
+    });
 </script>
 
 </body>
 </html>
+
