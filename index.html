@@ -10,7 +10,7 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 
     <!-- BIBLIOTHÈQUE SUPABASE -->
-    <script src="cdn.jsdelivr.net"></script>
+    <script src="unpkg.com"></script>
 
     <style>
         html, body { height: 100%; margin: 0; padding: 0; background: #1a1a1a; font-family: sans-serif; overflow: hidden; }
@@ -63,13 +63,18 @@
 
     // --- 2. INITIALISATION ---
     window.onload = function() {
+    // On attend un tout petit peu pour laisser les scripts s'initialiser
+    setTimeout(function() {
         try {
             // Vérification Leaflet
             if (typeof L === 'undefined') throw new Error("Leaflet non chargé");
             
-            // Initialisation Supabase sécurisée
-            if (typeof supabase === 'undefined') throw new Error("Supabase non chargé");
-            _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+            // Vérification Supabase (on teste plusieurs noms possibles)
+            const supabaseLib = window.supabase || window['@supabase/supabase-js'];
+            
+            if (!supabaseLib) throw new Error("Supabase non chargé");
+            
+            _supabase = supabaseLib.createClient(SUPABASE_URL, SUPABASE_KEY);
 
             document.getElementById('load-check').innerHTML = "Système opérationnel ✅";
             setupMap();
@@ -78,7 +83,9 @@
             document.getElementById('load-check').innerHTML = "Erreur : " + err.message + " ❌";
             console.error(err);
         }
-    };
+    }, 500); // Pause de 500ms
+};
+
 
     function setupMap() {
         map = L.map('map', { zoomControl: false }).setView([46.6, 2.2], 5);
@@ -138,3 +145,4 @@
 
 </body>
 </html>
+
