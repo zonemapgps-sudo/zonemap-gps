@@ -65,13 +65,15 @@
 <div id="auth-screen">
     <h1>Zone Map</h1>
     <div class="auth-container" id="login-form">
-        <input type="email" id="email" placeholder="Email">
-        <input type="password" id="password" placeholder="Mot de passe">
-        <button class="btn-auth btn-login" onclick="connexion()">SE CONNECTER</button>
-        <button class="btn-auth btn-signup" onclick="inscription()">Créer un compte</button>
-        <div id="auth-msg" style="margin-top:15px; font-size: 0.8rem;"></div>
-    </div>
+    <input type="text" id="username" placeholder="Pseudo (pour inscription)">
+    <input type="email" id="email" placeholder="Email">
+    <input type="password" id="password" placeholder="Mot de passe">
+    
+    <button class="btn-auth btn-login" onclick="connexion()">SE CONNECTER</button>
+    <button class="btn-auth btn-signup" onclick="inscription()">Créer un compte</button>
+    <div id="auth-msg" style="margin-top:15px; font-size: 0.8rem;"></div>
 </div>
+
 
 <div class="ui-panel" id="controls">
     <div><span id="status-dot"></span> <span id="status-text" style="font-weight:bold;">Prêt</span></div>
@@ -117,13 +119,44 @@
         document.getElementById('auth-msg').innerText = error ? error.message : "Compte créé ! Connectez-vous.";
     }
 
-    async function connexion() {
-        const email = document.getElementById('email').value;
-        const password = document.getElementById('password').value;
-        const { data, error } = await _supabase.auth.signInWithPassword({ email, password });
-        if (error) { document.getElementById('auth-msg').innerText = error.message; }
-        else { activerApp(data.user); }
+    async function inscription() {
+    const email = document.getElementById('email').value;
+    const password = document.getElementById('password').value;
+    const username = document.getElementById('username').value;
+
+    if (!username) {
+        document.getElementById('auth-msg').innerText = "Veuillez choisir un pseudo.";
+        return;
     }
+
+    const { error } = await _supabase.auth.signUp({
+        email: email,
+        password: password,
+        options: {
+            data: { display_name: username } // On stocke le pseudo ici
+        }
+    });
+
+    if (error) {
+        document.getElementById('auth-msg').innerText = error.message;
+    } else {
+        document.getElementById('auth-msg').innerText = "Compte créé ! Connectez-vous.";
+    }
+}
+
+function activerApp(user) {
+    currentUser = user;
+    // On récupère le pseudo dans les métadonnées, sinon on met l'email par défaut
+    const pseudo = user.user_metadata.display_name || user.email.split('@');
+    
+    document.getElementById('user-display').innerHTML = pseudo;
+    
+    document.getElementById('auth-screen').style.display = 'none';
+    document.getElementById('controls').style.display = 'block';
+    document.getElementById('hist-toggle').style.display = 'block';
+    demarrerGps();
+}
+
 
     function activerApp(user) {
         currentUser = user;
@@ -230,3 +263,4 @@
 </script>
 </body>
 </html>
+
