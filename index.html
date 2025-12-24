@@ -13,15 +13,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
     <style>
-        html, body { 
-            height: 100%; 
-            margin: 0; 
-            padding: 0; 
-            background: #1a1a1a; 
-            font-family: sans-serif; 
-            overflow: hidden; /* Empêche tout défilement parasite */
-            width: 100vw;
-        }
+        html, body { height: 100%; margin: 0; padding: 0; background: #1a1a1a; font-family: sans-serif; overflow: hidden; width: 100vw; }
         #map { position: absolute; top: 0; bottom: 0; width: 100%; z-index: 1; }
 
         /* Écran de Login/Accueil */
@@ -48,31 +40,24 @@
         .active-gps #status-dot { background-color: #ff0000; animation: blink 1s infinite; }
         @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }
 
-        /* --- CORRECTION HISTORIQUE (SANS MARGE BLANCHE) --- */
-        #hist-toggle { 
-            position: absolute; top: 15px; right: 15px; z-index: 1000; 
-            padding: 12px; border-radius: 50%; background: white; 
-            border: none; box-shadow: 0 2px 10px rgba(0,0,0,0.3); 
-            cursor: pointer; display: none; 
-        }
+        /* --- HISTORIQUE --- */
+        #hist-toggle { position: absolute; top: 15px; right: 15px; z-index: 1000; padding: 12px; border-radius: 50%; background: white; border: none; box-shadow: 0 2px 10px rgba(0,0,0,0.3); cursor: pointer; display: none; }
         
         #history-sidebar {
             position: fixed; top: 0; right: 0; width: 280px; height: 100%;
             background: white; z-index: 3000; 
             transition: transform 0.3s ease, visibility 0.3s;
-            transform: translateX(100%); /* Caché à droite */
-            visibility: hidden; /* Désactivé quand fermé */
+            transform: translateX(100%);
+            visibility: hidden;
             padding: 20px; box-shadow: -5px 0 15px rgba(0,0,0,0.2); 
             overflow-y: auto; box-sizing: border-box;
         }
-        #history-sidebar.open { 
-            transform: translateX(0); 
-            visibility: visible;
-        }
+        #history-sidebar.open { transform: translateX(0); visibility: visible; }
         .hist-item { padding: 12px; border-bottom: 1px solid #eee; cursor: pointer; transition: background 0.2s; }
         .hist-item:hover { background: #f0f7ff; }
-        .hist-item b { color: #007bff; font-size: 0.9rem; }
-        .hist-item small { color: #666; }
+        
+        .btn-all { background: #007bff; color: white; border: none; padding: 10px; width: 100%; border-radius: 5px; margin-bottom: 15px; font-weight: bold; cursor: pointer; }
+        #exit-lecture { background: #ff3b30; color: white; border: none; padding: 5px 10px; border-radius: 5px; display: none; margin-top: 10px; width: 100%; cursor: pointer; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -92,10 +77,10 @@
     <div><span id="status-dot"></span> <span id="status-text" style="font-weight:bold;">Prêt</span></div>
     <div style="font-size: 12px; color: #666; margin-top: 5px;">Utilisateur: <span id="user-display">...</span></div>
     <button onclick="recenterMap()" style="margin-top:10px; width:100%; padding:8px; border-radius:5px; border:1px solid #ccc; background:white; cursor:pointer;">📍 Recentrer</button>
+    <button id="exit-lecture" onclick="quitterLecture()">❌ Quitter Historique</button>
     <button onclick="deconnexion()" style="margin-top:10px; width:100%; font-size:10px; background:#f8f8f8; border:1px solid #ddd; padding:5px; border-radius:5px;">Déconnexion</button>
 </div>
 
-<!-- BOUTON ET VOLET HISTORIQUE -->
 <button id="hist-toggle" onclick="toggleHistory()">📂</button>
 
 <div id="history-sidebar">
@@ -103,6 +88,7 @@
         <h3 style="margin:0;">Historique (7j)</h3>
         <button onclick="toggleHistory()" style="border:none; background:none; font-size:24px; cursor:pointer;">&times;</button>
     </div>
+    <button class="btn-all" onclick="afficherTout()">🌍 Afficher TOUS les trajets</button>
     <div id="hist-list">Chargement...</div>
 </div>
 
@@ -114,12 +100,10 @@
     const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
     var map, route = [], polyline, marker, currentUser = null;
+    var modeLecture = false; 
     const sessionID = "session_" + Date.now();
 
-    window.onload = function() {
-        setupMap();
-        verifierSession();
-    };
+    window.onload = function() { setupMap(); verifierSession(); };
 
     async function verifierSession() {
         const { data: { session } } = await _supabase.auth.getSession();
@@ -129,9 +113,8 @@
     async function inscription() {
         const email = document.getElementById('email').value;
         const password = document.getElementById('password').value;
-        const { data, error } = await _supabase.auth.signUp({ email, password });
-        if (error) { document.getElementById('auth-msg').innerText = error.message; }
-        else { document.getElementById('auth-msg').innerText = "Compte créé ! Connectez-vous."; }
+        const { error } = await _supabase.auth.signUp({ email, password });
+        document.getElementById('auth-msg').innerText = error ? error.message : "Compte créé ! Connectez-vous.";
     }
 
     async function connexion() {
@@ -151,40 +134,42 @@
         demarrerGps();
     }
 
-    async function deconnexion() {
-        await _supabase.auth.signOut();
-        location.reload();
-    }
+    async function deconnexion() { await _supabase.auth.signOut(); location.reload(); }
 
     function setupMap() {
         map = L.map('map', { zoomControl: false }).setView([46.6, 2.2], 5);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
         polyline = L.polyline([], {color: '#ff3b30', weight: 6}).addTo(map);
-        marker = L.circleMarker([0, 0], { radius: 8, color: '#007aff', fillColor: 'white', fillOpacity: 1, weight: 3 }).addTo(map);
+        marker = L.circleMarker([0,0], { radius: 8, color: '#007aff', fillColor: 'white', fillOpacity: 1, weight: 3 }).addTo(map);
     }
 
     function demarrerGps() {
         map.locate({ watch: true, enableHighAccuracy: true });
         map.on('locationfound', function(e) {
-            document.getElementById('controls').classList.add('active-gps');
             const latlng = e.latlng;
-            route.push(latlng);
-            polyline.setLatLngs(route);
-            marker.setLatLng(latlng);
-            map.setView(latlng, 17);
+            if (!modeLecture) {
+                document.getElementById('controls').classList.add('active-gps');
+                route.push(latlng);
+                polyline.setLatLngs(route);
+                marker.setLatLng(latlng);
+                map.setView(latlng, 17);
+                document.getElementById('status-text').innerHTML = "En direct";
+            }
             sauvegarderPoint(latlng.lat, latlng.lng);
         });
     }
 
     async function sauvegarderPoint(lat, lng) {
         if (!currentUser) return;
-        await _supabase.from('trajets').insert([
-            { latitude: lat, longitude: lng, session_id: sessionID, user_id: currentUser.id }
-        ]);
+        await _supabase.from('trajets').insert([{ latitude: lat, longitude: lng, session_id: sessionID, user_id: currentUser.id }]);
     }
 
-    function recenterMap() { if (route.length > 0) map.setView(route[route.length-1], 17); }
+    function recenterMap() { 
+        if (modeLecture) quitterLecture();
+        if (route.length > 0) map.setView(route[route.length-1], 17); 
+    }
 
+    /* --- HISTORIQUE --- */
     function toggleHistory() {
         const sidebar = document.getElementById('history-sidebar');
         sidebar.classList.toggle('open');
@@ -193,47 +178,55 @@
 
     async function chargerListeHistorique() {
         const listDiv = document.getElementById('hist-list');
-        listDiv.innerHTML = "<p style='color:#666'>Chargement...</p>";
-        const uneSemaine = new Date();
-        uneSemaine.setDate(uneSemaine.getDate() - 7);
-        const { data, error } = await _supabase
-            .from('trajets')
-            .select('session_id, created_at')
-            .gt('created_at', uneSemaine.toISOString())
-            .order('created_at', { ascending: false });
-        if (error) { listDiv.innerHTML = "<p style='color:red'>Erreur</p>"; return; }
-        const sessionsUniques = [];
-        const mapSessions = new Map();
-        for (const item of data) {
-            if (!mapSessions.has(item.session_id)) {
-                mapSessions.set(item.session_id, true);
-                sessionsUniques.push(item);
-            }
-        }
-        if (sessionsUniques.length === 0) { listDiv.innerHTML = "<p>Aucun trajet.</p>"; return; }
+        listDiv.innerHTML = "Chargement...";
+        const uneSemaine = new Date(); uneSemaine.setDate(uneSemaine.getDate() - 7);
+        const { data, error } = await _supabase.from('trajets').select('session_id, created_at').gt('created_at', uneSemaine.toISOString()).order('created_at', { ascending: false });
+        if (error) return listDiv.innerHTML = "Erreur";
+        
+        const sessionsUniques = []; const mapSessions = new Map();
+        for (const item of data) { if (!mapSessions.has(item.session_id)) { mapSessions.set(item.session_id, true); sessionsUniques.push(item); } }
+
         listDiv.innerHTML = sessionsUniques.map(s => {
             const date = new Date(s.created_at).toLocaleString('fr-FR', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' });
             return `<div class="hist-item" onclick="afficherUnTrajet('${s.session_id}')"><b>Trajet</b><br><small>📅 ${date}</small></div>`;
-        }).join('');
+        }).join('') || "Aucun trajet.";
     }
 
     async function afficherUnTrajet(sId) {
+        modeLecture = true;
         toggleHistory();
-        document.getElementById('status-text').innerHTML = "Mode Lecture";
-        const { data, error } = await _supabase
-            .from('trajets')
-            .select('latitude, longitude')
-            .eq('session_id', sId)
-            .order('created_at', { ascending: true });
-        if (data && data.length > 0) {
-            const pointsHist = data.map(p => [p.latitude, p.longitude]);
-            polyline.setLatLngs(pointsHist);
-            map.fitBounds(L.latLngBounds(pointsHist), { padding: [50, 50] });
-            marker.setLatLng(pointsHist[pointsHist.length - 1]);
+        document.getElementById('exit-lecture').style.display = 'block';
+        document.getElementById('status-text').innerHTML = "Historique (Lecture)";
+        
+        const { data } = await _supabase.from('trajets').select('latitude, longitude').eq('session_id', sId).order('created_at', { ascending: true });
+        if (data && data.length > 0) dessinerTrajet(data.map(p => [p.latitude, p.longitude]));
+    }
+
+    async function afficherTout() {
+        modeLecture = true;
+        toggleHistory();
+        document.getElementById('exit-lecture').style.display = 'block';
+        document.getElementById('status-text').innerHTML = "Tout afficher (7j)";
+        const uneSemaine = new Date(); uneSemaine.setDate(uneSemaine.getDate() - 7);
+        const { data } = await _supabase.from('trajets').select('latitude, longitude').gt('created_at', uneSemaine.toISOString()).order('created_at', { ascending: true });
+        if (data && data.length > 0) dessinerTrajet(data.map(p => [p.latitude, p.longitude]));
+    }
+
+    function dessinerTrajet(points) {
+        polyline.setLatLngs(points);
+        map.fitBounds(L.latLngBounds(points), { padding: [30, 30] });
+        marker.setLatLng(points[points.length - 1]);
+    }
+
+    function quitterLecture() {
+        modeLecture = false;
+        document.getElementById('exit-lecture').style.display = 'none';
+        polyline.setLatLngs(route); // On remet le trajet en direct
+        if (route.length > 0) {
+            marker.setLatLng(route[route.length-1]);
+            map.setView(route[route.length-1], 17);
         }
     }
 </script>
-
 </body>
 </html>
-
