@@ -60,29 +60,30 @@
     const sessionID = "session_" + Date.now();
 
     // --- 2. INITIALISATION ---
-    window.onload = function() {
-        // Initialiser la carte quoi qu'il arrive
-        setupMap();
+   window.onload = function() {
+    // 1. Initialisation immédiate de la carte
+    setupMap();
 
-        // Tenter de connecter Supabase
-        setTimeout(function() {
-            try {
-                // On cherche l'objet supabase dans plusieurs endroits possibles
-                const sbBase = window.supabase || (window.supabasejs ? window.supabasejs : null);
+    // 2. Tentative de connexion au Cloud
+    setTimeout(function() {
+        try {
+            // Utilisation du nom standard de la bibliothèque v2
+            if (window.supabase && typeof window.supabase.createClient === 'function') {
+                _supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
                 
-                if (sbBase && typeof sbBase.createClient === 'function') {
-                    _supabase = sbBase.createClient(SUPABASE_URL, SUPABASE_KEY);
-                    document.getElementById('load-check').innerHTML = "Système Cloud Prêt ✅";
-                    nettoyerVieuxTrajets();
-                } else {
-                    document.getElementById('load-check').innerHTML = "Mode Local uniquement ⚠️";
-                }
-            } catch (err) {
-                console.error("Erreur init Supabase:", err);
-                document.getElementById('load-check').innerHTML = "Cloud déconnecté (Erreur)";
+                document.getElementById('load-check').innerHTML = "Système Cloud Prêt ✅";
+                document.getElementById('load-check').style.color = "#28a745"; // Vert
+                nettoyerVieuxTrajets();
+            } else {
+                throw new Error("Bibliothèque non détectée");
             }
-        }, 1000);
-    };
+        } catch (err) {
+            console.error("Détails:", err);
+            document.getElementById('load-check').innerHTML = "Mode Local (Cloud non chargé) ⚠️";
+        }
+    }, 1500); 
+};
+
 
     function setupMap() {
         try {
@@ -152,5 +153,6 @@
 
 </body>
 </html>
+
 
 
