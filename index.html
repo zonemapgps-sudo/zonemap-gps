@@ -2,158 +2,155 @@
 <html lang="fr">
 <head>
     <meta charset="utf-8" />
-    <title>Zone Map 2025</title>
+    <title>Zone Map - Private Cloud</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 
-    <!-- CARTOGRAPHIE -->
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <!-- LIENS LEAFLET & SUPABASE -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 
     <!-- BASE DE DONNEES (Lien stable 2025) -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
+
     <style>
         html, body { height: 100%; margin: 0; padding: 0; background: #1a1a1a; font-family: sans-serif; overflow: hidden; }
-        #map { position: absolute; top: 0; bottom: 0; width: 100%; height: 100%; z-index: 1; background: #222; }
-        #welcome-screen {
+        #map { position: absolute; top: 0; bottom: 0; width: 100%; z-index: 1; }
+
+        /* Écran de Login/Accueil */
+        #auth-screen {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: linear-gradient(135deg, #007bff 0%, #003d7a 100%);
             color: white; z-index: 2000; display: flex; flex-direction: column;
             align-items: center; justify-content: center; text-align: center;
         }
+
+        .auth-container { background: rgba(255,255,255,0.1); padding: 20px; border-radius: 15px; backdrop-filter: blur(10px); width: 80%; max-width: 300px; }
+        input { width: 100%; padding: 12px; margin: 8px 0; border-radius: 8px; border: none; box-sizing: border-box; }
+
+        .btn-auth { width: 100%; padding: 12px; margin-top: 10px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; }
+        .btn-login { background: #fff; color: #003d7a; }
+        .btn-signup { background: transparent; color: #fff; border: 1px solid #fff; font-size: 0.8rem; margin-top: 15px; }
+
+        /* Panneau de contrôle */
         .ui-panel {
             position: absolute; top: 15px; left: 15px; z-index: 1000;
             background: rgba(255, 255, 255, 0.95); padding: 15px; border-radius: 12px; display: none;
         }
-        .btn-start { padding: 18px 50px; font-size: 1.1rem; font-weight: bold; border-radius: 50px; border: none; cursor: pointer; background: white; color: #003d7a; }
-        #recenter-btn { margin-top:10px; width:100%; padding:8px; border-radius:5px; border:1px solid #ccc; background:white; cursor:pointer; font-weight:bold;}
-        #status-dot { height: 10px; width: 10px; background-color: #bbb; border-radius: 50%; display: inline-block; margin-right: 8px; }
+        #status-dot { height: 10px; width: 10px; background-color: #bbb; border-radius: 50%; display: inline-block; }
         .active-gps #status-dot { background-color: #ff0000; animation: blink 1s infinite; }
         @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }
     </style>
 </head>
 <body>
 
-<div id="welcome-screen">
+<div id="auth-screen">
     <h1>Zone Map</h1>
-    <p>Traceur Cloud Sync</p>
-    <button id="btn-action" class="btn-start" onclick="demarrerZoneMap()">COMMENCER</button>
-    <div id="load-check" style="margin-top:25px; font-size: 0.8rem; opacity: 0.6;">Vérification...</div>
+    <div class="auth-container" id="login-form">
+        <input type="email" id="email" placeholder="Email">
+        <input type="password" id="password" placeholder="Mot de passe">
+        <button class="btn-auth btn-login" onclick="connexion()">SE CONNECTER</button>
+        <button class="btn-auth btn-signup" onclick="inscription()">Créer un compte</button>
+        <div id="auth-msg" style="margin-top:15px; font-size: 0.8rem;"></div>
+    </div>
 </div>
 
 <div class="ui-panel" id="controls">
-    <div id="status-line"><span id="status-dot"></span> <span id="status-text">Prêt</span></div>
-    <div style="font-size: 13px; color: #444; margin-top: 8px;">Points Cloud : <span id="count">0</span></div>
-    <button id="recenter-btn" onclick="recenterMap()">📍 Recentrer</button>
+    <div><span id="status-dot"></span> <span id="status-text" style="font-weight:bold;">Prêt</span></div>
+    <div style="font-size: 12px; color: #666; margin-top: 5px;">Utilisateur: <span id="user-display">...</span></div>
+    <button onclick="recenterMap()" style="margin-top:10px; width:100%;">📍 Recentrer</button>
+    <button onclick="deconnexion()" style="margin-top:10px; width:100%; font-size:10px;">Déconnexion</button>
 </div>
 
 <div id="map"></div>
 
 <script>
-    // --- 1. CONFIGURATION (Remplacer par vos clés) ---
     const SUPABASE_URL = 'https://unwzavmahixfwyplhcxw.supabase.co';
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVud3phdm1haGl4Znd5cGxoY3h3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY1NjA0NzYsImV4cCI6MjA4MjEzNjQ3Nn0.I4YtMgaIKt17UGr3EfGf0L186GQSlv2puF_EzabP1B0';
-    
-    var _supabase, map, route = [], polyline, marker;
-    var autoCenter = true;
-    var currentPos = null;
+    const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    var map, route = [], polyline, marker, currentUser = null;
     const sessionID = "session_" + Date.now();
 
-    // --- 2. INITIALISATION ---
-   window.onload = function() {
-    // 1. Initialisation immédiate de la carte
-    setupMap();
+    window.onload = function() {
+        setupMap();
+        // Vérifier si une session existe déjà
+        verifierSession();
+    };
 
-    // 2. Tentative de connexion au Cloud
-    setTimeout(function() {
-        try {
-            // Utilisation du nom standard de la bibliothèque v2
-            if (window.supabase && typeof window.supabase.createClient === 'function') {
-                _supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-                
-                document.getElementById('load-check').innerHTML = "Système Cloud Prêt ✅";
-                document.getElementById('load-check').style.color = "#28a745"; // Vert
-                nettoyerVieuxTrajets();
-            } else {
-                throw new Error("Bibliothèque non détectée");
-            }
-        } catch (err) {
-            console.error("Détails:", err);
-            document.getElementById('load-check').innerHTML = "Mode Local (Cloud non chargé) ⚠️";
+    async function verifierSession() {
+        const { data: { session } } = await _supabase.auth.getSession();
+        if (session) {
+            activerApp(session.user);
         }
-    }, 1500); 
-};
+    }
 
+    async function inscription() {
+        const email = document.getElementById('email').value;
+        const password = document.getElementById('password').value;
+        const { data, error } = await _supabase.auth.signUp({ email, password });
+        if (error) {
+            document.getElementById('auth-msg').innerText = error.message;
+        } else {
+            document.getElementById('auth-msg').innerText = "Compte créé ! Connectez-vous.";
+        }
+    }
+
+    async function connexion() {
+        const email = document.getElementById('email').value;
+        const password = document.getElementById('password').value;
+        const { data, error } = await _supabase.auth.signInWithPassword({ email, password });
+        if (error) {
+            document.getElementById('auth-msg').innerText = error.message;
+        } else {
+            activerApp(data.user);
+        }
+    }
+
+    function activerApp(user) {
+        currentUser = user;
+        document.getElementById('user-display').innerHTML = user.email;
+        document.getElementById('auth-screen').style.display = 'none';
+        document.getElementById('controls').style.display = 'block';
+        demarrerGps();
+    }
+
+    async function deconnexion() {
+        await _supabase.auth.signOut();
+        location.reload();
+    }
 
     function setupMap() {
-        try {
-            map = L.map('map', { zoomControl: false }).setView([46.6, 2.2], 5);
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { 
-                attribution: '© OSM',
-                maxZoom: 19
-            }).addTo(map);
-            
-            polyline = L.polyline([], {color: '#ff3b30', weight: 6}).addTo(map);
-            marker = L.circleMarker([0,0], { radius: 8, color: '#007aff', fillColor: 'white', fillOpacity: 1, weight: 3 }).addTo(map);
+        map = L.map('map', { zoomControl: false }).setView([46.6, 2.2], 5);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+        polyline = L.polyline([], {color: '#ff3b30', weight: 6}).addTo(map);
+        marker = L.circleMarker([0, 0], { radius: 8, color: '#007aff', fillColor: 'white', fillOpacity: 1, weight: 3 }).addTo(map);
+    }
 
-            map.on('movestart', function () {
-                autoCenter = false;
-                document.getElementById('recenter-btn').style.background = "#ffeb3b";
-            });
-            
-            // Si on arrive ici, le bouton "Commencer" peut être utilisé
-            document.getElementById('load-check').innerHTML = "Carte prête ✅";
-        } catch (e) {
-            document.getElementById('load-check').innerHTML = "Erreur Carte ❌";
-        }
+    function demarrerGps() {
+        map.locate({ watch: true, enableHighAccuracy: true });
+        map.on('locationfound', function(e) {
+            document.getElementById('controls').classList.add('active-gps');
+            const latlng = e.latlng;
+            route.push(latlng);
+            polyline.setLatLngs(route);
+            marker.setLatLng(latlng);
+            map.setView(latlng, 17);
+
+            // SAUVEGARDE AVEC USER_ID
+            sauvegarderPoint(latlng.lat, latlng.lng);
+        });
     }
 
     async function sauvegarderPoint(lat, lng) {
-        if (!_supabase) return;
-        try {
-            await _supabase.from('trajets').insert([{ latitude: lat, longitude: lng, session_id: sessionID }]);
-        } catch (e) { console.error("Erreur envoi Cloud"); }
+        if (!currentUser) return;
+        await _supabase.from('trajets').insert([
+            { latitude: lat, longitude: lng, session_id: sessionID, user_id: currentUser.id }
+        ]);
     }
 
-    async function nettoyerVieuxTrajets() {
-        if (!_supabase) return;
-        try {
-            const uneSemaineAvant = new Date();
-            uneSemaineAvant.setDate(uneSemaineAvant.getDate() - 7);
-            await _supabase.from('trajets').delete().lt('created_at', uneSemaineAvant.toISOString());
-        } catch (e) {}
-    }
-
-    function recenterMap() {
-        autoCenter = true;
-        document.getElementById('recenter-btn').style.background = "white";
-        if (currentPos) map.setView(currentPos, 17);
-    }
-
-    function demarrerZoneMap() {
-        document.getElementById('welcome-screen').style.display = 'none';
-        document.getElementById('controls').style.display = 'block';
-
-        map.locate({ watch: true, enableHighAccuracy: true });
-
-        map.on('locationfound', function(e) {
-            document.getElementById('controls').classList.add('active-gps');
-            document.getElementById('status-text').innerHTML = "En direct";
-            currentPos = e.latlng;
-            route.push(currentPos);
-            polyline.setLatLngs(route);
-            marker.setLatLng(currentPos);
-            document.getElementById('count').innerHTML = route.length;
-            if (autoCenter) map.setView(currentPos, 17);
-            
-            sauvegarderPoint(currentPos.lat, currentPos.lng);
-        });
-    }
+    function recenterMap() { if (route.length > 0) map.setView(route[route.length-1], 17); }
 </script>
 
 </body>
 </html>
-
-
-
-
