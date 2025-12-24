@@ -10,7 +10,7 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 
     <!-- LIEN SUPABASE (Base de données) -->
-    <script src="unpkg.com"></script>
+<script src="cdnjs.cloudflare.com"></script>
 
     <style>
         html, body { height: 100%; margin: 0; padding: 0; background: #1a1a1a; font-family: sans-serif; overflow: hidden; }
@@ -65,20 +65,24 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
         setupMap();
 
         // 2. On tente de charger Supabase après 1 seconde
-        setTimeout(function() {
+       setTimeout(function() {
             try {
-                if (typeof supabase !== 'undefined') {
-                    _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+                // On teste les deux noms possibles pour la bibliothèque
+                const supabaseLib = window.supabase || window.supabase.createClient;
+                
+                if (supabaseLib) {
+                    _supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
                     document.getElementById('load-check').innerHTML = "Système Cloud Prêt ✅";
+                    document.getElementById('load-check').style.color = "#28a745";
                     nettoyerVieuxTrajets();
                 } else {
                     document.getElementById('load-check').innerHTML = "Mode Local (Cloud non chargé) ⚠️";
                 }
             } catch (err) {
+                console.error("Détail erreur Supabase:", err);
                 document.getElementById('load-check').innerHTML = "Erreur Cloud : " + err.message;
             }
-        }, 1000);
-    };
+        }, 1500); // On laisse 1.5s pour être sûr que tout est chargé
 
     function setupMap() {
         try {
@@ -142,3 +146,4 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 
 </body>
 </html>
+
