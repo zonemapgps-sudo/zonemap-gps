@@ -196,24 +196,30 @@ function calculerSurface() {
 async function sauvegarder(lat, lng, surface) {
     if (!currentUser) return;
 
-    // 1. On continue d'enregistrer le point GPS précis pour le tracé
-    await _supabase.from('trajets').insert([{ 
-        latitude: lat, 
-        longitude: lng, 
-        session_id: sessionID, 
-        user_id: currentUser.id 
-    }]);
+    try {
+        // 1. Enregistrement du point (Table trajets)
+        const { error: err1 } = await _supabase.from('trajets').insert([{ 
+            latitude: lat, 
+            longitude: lng, 
+            session_id: sessionID, 
+            user_id: currentUser.id 
+        }]);
+        if (err1) console.error("Erreur table trajets:", err1.message);
 
-    // 2. On met à jour (UPSERT) le résumé du trajet avec la nouvelle surface cumulée
-    const { error } = await _supabase.from('sessions_conquete').upsert({
-        id_trajet: sessionID,
-        user_id: currentUser.id,
-        pseudo: document.getElementById('user-display').innerText,
-        surface_totale: Math.round(surface),
-        date_acquisition: new Date().toISOString()
-    }, { onConflict: 'id_trajet' }); // Si l'ID existe déjà, on met à jour la ligne
+        // 2. Mise à jour du score global (Table sessions_conquete)
+        const { error: err2 } = await _supabase.from('sessions_conquete').upsert({
+            id_trajet: sessionID,
+            user_id: currentUser.id,
+            pseudo: document.getElementById('user-display').innerText,
+            surface_totale: Math.round(surface),
+            date_acquisition: new Date().toISOString()
+        }, { onConflict: 'id_trajet' });
+        
+        if (err2) console.error("Erreur table sessions_conquete:", err2.message);
 
-    if (error) console.error("Erreur de mise à jour du score:", error.message);
+    } catch (e) {
+        console.error("Erreur critique sauvegarde:", e);
+    }
 }
 
 function toggleHistory() {
@@ -274,4 +280,5 @@ async function deconnexion() { await _supabase.auth.signOut(); location.reload()
 </script>
 </body>
 </html>
+
 
