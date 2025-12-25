@@ -5,7 +5,7 @@
     <title>Zone Map - Conquête 2025</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 
-    <!-- LIBRAIRIES STABLES -->
+    <!-- LIBRAIRIES STABLES 2025 -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
     <script src="unpkg.com"></script>
@@ -15,7 +15,6 @@
         html, body { height: 100%; margin: 0; padding: 0; background: #1a1a1a; font-family: sans-serif; overflow: hidden; width: 100vw; }
         #map { position: absolute; top: 0; bottom: 0; width: 100%; height: 100%; z-index: 1; }
 
-        /* ACCUEIL */
         #auth-screen {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: #0f0f0f; color: white; z-index: 2000; 
@@ -30,7 +29,6 @@
         input { width: 100%; padding: 12px; margin: 6px 0; border-radius: 8px; border: none; box-sizing: border-box; }
         .btn-auth { width: 100%; padding: 12px; margin-top: 10px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; }
 
-        /* UI PANEL */
         .ui-panel {
             position: absolute; top: 15px; left: 15px; z-index: 1000;
             background: rgba(255, 255, 255, 0.95); padding: 15px; border-radius: 12px; 
@@ -88,36 +86,26 @@
 <div id="map"></div>
 
 <script>
-    const SUPABASE_URL = 'https://unwzavmahixfwyplhcxw.supabase.co';
+const SUPABASE_URL = 'https://unwzavmahixfwyplhcxw.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVud3phdm1haGl4Znd5cGxoY3h3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY1NjA0NzYsImV4cCI6MjA4MjEzNjQ3Nn0.I4YtMgaIKt17UGr3EfGf0L186GQSlv2puF_EzabP1B0';
 const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 let map, polyline, marker, currentUser = null;
-let routeLngLat = []; // Format Turf: [lng, lat]
+let routeLngLat = []; 
 let polygons = []; 
 let modeLecture = false;
 const sessionID = "session_" + Date.now();
 
-// Initialisation au chargement
 window.onload = function() {
     initMap();
     verifierSession();
 };
 
 function initMap() {
-    // On crée la carte immédiatement
     map = L.map('map', { zoomControl: false }).setView([46.6, 2.2], 5);
-    
-    // Fond de carte OpenStreetMap (Standard)
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap'
-    }).addTo(map);
-    
-    // Initialisation des couches de dessin
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(map);
     polyline = L.polyline([], {color: '#ff3b30', weight: 12, opacity: 0.7}).addTo(map);
     marker = L.circleMarker([46.6, 2.2], { radius: 7, color: '#007aff', fillColor: 'white', fillOpacity: 1, weight: 3 }).addTo(map);
-    
-    // Correction bug d'affichage : forcer le redimensionnement
     setTimeout(() => { map.invalidateSize(); }, 500);
 }
 
@@ -140,73 +128,68 @@ async function connexion() {
     const email = document.getElementById('email').value;
     const password = document.getElementById('password').value;
     const { data, error } = await _supabase.auth.signInWithPassword({ email, password });
-    if (error) {
-        document.getElementById('auth-msg').innerText = error.message;
-    } else if (data && data.user) {
-        activerApp(data.user);
-    }
+    if (error) { document.getElementById('auth-msg').innerText = error.message; }
+    else if (data && data.user) { activerApp(data.user); }
 }
 
 function activerApp(user) {
     currentUser = user;
     let pseudo = (user.user_metadata && user.user_metadata.display_name) ? user.user_metadata.display_name : user.email.split('@')[0];
-    
     document.getElementById('user-display').innerText = pseudo;
     document.getElementById('auth-screen').style.display = 'none';
     document.getElementById('controls').style.display = 'block';
     document.getElementById('hist-toggle').style.display = 'block';
-    
-    // On force le rafraîchissement de la carte lors de l'affichage
     map.invalidateSize();
 
     map.locate({ watch: true, enableHighAccuracy: true });
-  map.on('locationfound', (e) => {
-    if (modeLecture) return;
-    const p = [e.latlng.lng, e.latlng.lat];
-    
-    routeLngLat.push(p);
-    polyline.addLatLng(e.latlng);
-    marker.setLatLng(e.latlng);
-    map.setView(e.latlng, 18);
-    
-    document.getElementById('controls').classList.add('active-gps');
-    document.getElementById('status-text').innerText = "Conquête...";
-    
-    detecterBoucle();
-    
-    // Calcul de la surface actuelle
-    const surfaceActuelle = calculerSurface(); 
-    
-    // Affichage UI
-    document.getElementById('surface-val').innerText = Math.round(surfaceActuelle);
-    
-    // Sauvegarde en base avec la surface
-    sauvegarder(e.latlng.lat, e.latlng.lng, surfaceActuelle);
-});
+    map.on('locationfound', (e) => {
+        if (modeLecture) return;
+        const p = [e.latlng.lng, e.latlng.lat];
+        routeLngLat.push(p);
+        polyline.addLatLng(e.latlng);
+        marker.setLatLng(e.latlng);
+        map.setView(e.latlng, 18);
+        document.getElementById('controls').classList.add('active-gps');
+        document.getElementById('status-text').innerText = "Conquête...";
+        detecterBoucle();
+        const surface = calculerSurface(); 
+        document.getElementById('surface-val').innerText = Math.round(surface);
+        sauvegarder(e.latlng.lat, e.latlng.lng, surface);
+    });
+}
 
-// Modifier calculerSurface pour qu'elle RETOURNE la valeur
+function detecterBoucle() {
+    if (routeLngLat.length < 4) return;
+    try {
+        const line = turf.lineString(routeLngLat);
+        const kinks = turf.lineIntersect(line, line);
+        if (kinks.features.length > 0) {
+            const poly = turf.lineToPolygon(line);
+            if (poly) {
+                L.geoJSON(poly, { style: { color: '#ff3b30', fillColor: '#ff3b30', fillOpacity: 0.3, weight: 1 } }).addTo(map);
+                polygons.push(poly);
+                routeLngLat = [routeLngLat[routeLngLat.length - 1]];
+                polyline.setLatLngs([]);
+            }
+        }
+    } catch(err) { console.warn("Boucle complexe"); }
+}
+
 function calculerSurface() {
     let m2 = 0;
     if (routeLngLat.length > 1) {
         const line = turf.lineString(routeLngLat);
-        // Calcul du ruban de 4m de large
         m2 += (turf.length(line, {units:'kilometers'}) * 1000) * 4;
     }
-    // Ajout des surfaces de boucles fermées
     polygons.forEach(p => { m2 += turf.area(p); });
     return m2;
 }
 
 async function sauvegarder(lat, lng, surface) {
     if (!currentUser) return;
-    await _supabase.from('trajets').insert([{ 
-        latitude: lat, 
-        longitude: lng, 
-        session_id: sessionID, 
-        user_id: currentUser.id,
-        surface_m2: surface // Nouvelle donnée sauvegardée
-    }]);
+    await _supabase.from('trajets').insert([{ latitude: lat, longitude: lng, session_id: sessionID, user_id: currentUser.id, surface_m2: surface }]);
 }
+
 function toggleHistory() {
     const s = document.getElementById('history-sidebar');
     s.classList.toggle('open');
@@ -217,21 +200,10 @@ async function chargerHistorique() {
     const list = document.getElementById('hist-list');
     list.innerHTML = "Chargement...";
     const septJours = new Date(); septJours.setDate(septJours.getDate() - 7);
-    
-    const { data, error } = await _supabase.from('trajets')
-        .select('session_id, created_at')
-        .gt('created_at', septJours.toISOString())
-        .order('created_at', { ascending: false });
-
+    const { data, error } = await _supabase.from('trajets').select('session_id, created_at').gt('created_at', septJours.toISOString()).order('created_at', { ascending: false });
     if (error || !data) { list.innerHTML = "Erreur"; return; }
-    
     const uniques = [...new Map(data.map(item => [item.session_id, item])).values()];
-    list.innerHTML = uniques.map(s => `
-        <div class="hist-item" onclick="afficherHistorique('${s.session_id}')">
-            <b>Trajet du ${new Date(s.created_at).toLocaleDateString()}</b><br>
-            <small>${new Date(s.created_at).toLocaleTimeString()}</small>
-        </div>
-    `).join('') || "Aucun trajet.";
+    list.innerHTML = uniques.map(s => `<div class="hist-item" onclick="afficherHistorique('${s.session_id}')"><b>Trajet du ${new Date(s.created_at).toLocaleDateString()}</b><br><small>${new Date(s.created_at).toLocaleTimeString()}</small></div>`).join('') || "Aucun trajet.";
 }
 
 async function afficherHistorique(sid) {
@@ -248,7 +220,6 @@ async function afficherHistorique(sid) {
 function quitterLecture() {
     modeLecture = false;
     document.getElementById('exit-lecture').style.display = 'none';
-    // Reconvertir [lng, lat] de Turf en [lat, lng] pour Leaflet
     const ptsActuels = routeLngLat.map(p => [p[1], p[0]]);
     polyline.setLatLngs(ptsActuels); 
     recenterMap();
@@ -262,10 +233,6 @@ function recenterMap() {
 }
 
 async function deconnexion() { await _supabase.auth.signOut(); location.reload(); }
-
 </script>
 </body>
 </html>
-
-
-
