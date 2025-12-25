@@ -176,18 +176,44 @@ function detecterBoucle() {
 }
 
 function calculerSurface() {
-    let m2 = 0;
+    let m2Total = 0;
+
+    // 1. Calcul du ruban (trajet linéaire) sur l'ensemble des points de la session
     if (routeLngLat.length > 1) {
         const line = turf.lineString(routeLngLat);
-        m2 += (turf.length(line, {units:'kilometers'}) * 1000) * 4;
+        const distanceKm = turf.length(line, {units: 'kilometers'});
+        m2Total += (distanceKm * 1000) * 4; // Distance en m * 4m de large
     }
-    polygons.forEach(p => { m2 += turf.area(p); });
-    return m2;
+
+    // 2. Ajout des surfaces des boucles fermées détectées
+    polygons.forEach(p => {
+        m2Total += turf.area(p);
+    });
+
+    return m2Total;
 }
 
 async function sauvegarder(lat, lng, surface) {
     if (!currentUser) return;
-    await _supabase.from('trajets').insert([{ latitude: lat, longitude: lng, session_id: sessionID, user_id: currentUser.id, surface_m2: surface }]);
+
+    // 1. On continue d'enregistrer le point GPS précis pour le tracé
+    await _supabase.from('trajets').insert([{ 
+        latitude: lat, 
+        longitude: lng, 
+        session_id: sessionID, 
+        user_id: currentUser.id 
+    }]);
+
+    // 2. On met à jour (UPSERT) le résumé du trajet avec la nouvelle surface cumulée
+    const { error } = await _supabase.from('sessions_conquete').upsert({
+        id_trajet: sessionID,
+        user_id: currentUser.id,
+        pseudo: document.getElementById('user-display').innerText,
+        surface_totale: Math.round(surface),
+        date_acquisition: new Date().toISOString()
+    }, { onConflict: 'id_trajet' }); // Si l'ID existe déjà, on met à jour la ligne
+
+    if (error) console.error("Erreur de mise à jour du score:", error.message);
 }
 
 function toggleHistory() {
@@ -200,11 +226,23 @@ async function chargerHistorique() {
     const list = document.getElementById('hist-list');
     list.innerHTML = "Chargement...";
     const septJours = new Date(); septJours.setDate(septJours.getDate() - 7);
-    const { data, error } = await _supabase.from('trajets').select('session_id, created_at').gt('created_at', septJours.toISOString()).order('created_at', { ascending: false });
+    
+    // Requête simplifiée sur la table des résumés
+    const { data, error } = await _supabase.from('sessions_conquete')
+        .select('*')
+        .gt('date_acquisition', septJours.toISOString())
+        .order('date_acquisition', { ascending: false });
+
     if (error || !data) { list.innerHTML = "Erreur"; return; }
-    const uniques = [...new Map(data.map(item => [item.session_id, item])).values()];
-    list.innerHTML = uniques.map(s => `<div class="hist-item" onclick="afficherHistorique('${s.session_id}')"><b>Trajet du ${new Date(s.created_at).toLocaleDateString()}</b><br><small>${new Date(s.created_at).toLocaleTimeString()}</small></div>`).join('') || "Aucun trajet.";
+    
+    list.innerHTML = data.map(s => `
+        <div class="hist-item" onclick="afficherHistorique('${s.id_trajet}')">
+            <b>${s.surface_totale} m² capturés</b><br>
+            <small>📅 ${new Date(s.date_acquisition).toLocaleDateString()}</small>
+        </div>
+    `).join('') || "Aucune conquête récente.";
 }
+
 
 async function afficherHistorique(sid) {
     modeLecture = true; toggleHistory();
@@ -236,3 +274,4 @@ async function deconnexion() { await _supabase.auth.signOut(); location.reload()
 </script>
 </body>
 </html>
+
