@@ -91,12 +91,12 @@
 <div id="map"></div>
 
 <script>
-    const SUPABASE_URL = 'https://unwzavmahixfwyplhcxw.supabase.co';
+        const SUPABASE_URL = 'https://unwzavmahixfwyplhcxw.supabase.co';
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVud3phdm1haGl4Znd5cGxoY3h3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY1NjA0NzYsImV4cCI6MjA4MjEzNjQ3Nn0.I4YtMgaIKt17UGr3EfGf0L186GQSlv2puF_EzabP1B0';
     const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
     let map, polyline, marker, currentUser = null;
-    let routeLngLat = []; // [lng, lat] pour Turf
+    let routeLngLat = []; 
     let polygons = []; 
     let modeLecture = false;
     const sessionID = "session_" + Date.now();
@@ -110,12 +110,12 @@
         map = L.map('map', { zoomControl: false }).setView([46.6, 2.2], 5);
         L.tileLayer('https://{s}{z}/{x}/{y}{r}.png').addTo(map);
         polyline = L.polyline([], {color: '#ff3b30', weight: 12, opacity: 0.7}).addTo(map);
-        marker = L.circleMarker(, { radius: 7, color: '#007aff', fillColor: 'white', fillOpacity: 1, weight: 3 }).addTo(map);
+        marker = L.circleMarker([0, 0], { radius: 7, color: '#007aff', fillColor: 'white', fillOpacity: 1, weight: 3 }).addTo(map);
     }
 
     async function verifierSession() {
         const { data: { session } } = await _supabase.auth.getSession();
-        if (session) activerApp(session.user);
+        if (session && session.user) activerApp(session.user);
     }
 
     async function inscription() {
@@ -125,20 +125,31 @@
         if(!username) { alert("Pseudo requis !"); return; }
         const { error } = await _supabase.auth.signUp({ email, password, options: { data: { display_name: username } } });
         if (error) document.getElementById('auth-msg').innerText = error.message;
-        else document.getElementById('auth-msg').innerText = "Compte créé ! Connectez-vous.";
+        else document.getElementById('auth-msg').innerText = "Compte créé !";
     }
 
     async function connexion() {
         const email = document.getElementById('email').value;
         const password = document.getElementById('password').value;
         const { data, error } = await _supabase.auth.signInWithPassword({ email, password });
-        if (error) document.getElementById('auth-msg').innerText = error.message;
-        else activerApp(data.user);
+        if (error) {
+            document.getElementById('auth-msg').innerText = error.message;
+        } else if (data.user) {
+            activerApp(data.user);
+        }
     }
 
     function activerApp(user) {
         currentUser = user;
-        document.getElementById('user-display').innerText = user.user_metadata.display_name || user.email.split('@')[0];
+        // Sécurité sur le pseudo
+        let pseudo = "Anonyme";
+        if (user.user_metadata && user.user_metadata.display_name) {
+            pseudo = user.user_metadata.display_name;
+        } else if (user.email) {
+            pseudo = user.email.split('@')[0];
+        }
+        
+        document.getElementById('user-display').innerText = pseudo;
         document.getElementById('auth-screen').style.display = 'none';
         document.getElementById('controls').style.display = 'block';
         document.getElementById('hist-toggle').style.display = 'block';
@@ -171,7 +182,6 @@
                 const poly = turf.lineToPolygon(line);
                 L.geoJSON(poly, { style: { color: '#ff3b30', fillColor: '#ff3b30', fillOpacity: 0.3, weight: 1 } }).addTo(map);
                 polygons.push(poly);
-                // On repart du dernier point pour la nouvelle boucle
                 routeLngLat = [routeLngLat[routeLngLat.length - 1]];
                 polyline.setLatLngs([]);
             } catch(err) { console.log("Boucle complexe"); }
@@ -182,7 +192,7 @@
         let m2 = 0;
         if (routeLngLat.length > 1) {
             const line = turf.lineString(routeLngLat);
-            m2 += (turf.length(line, {units:'kilometers'}) * 1000) * 4; // Ruban 4m
+            m2 += (turf.length(line, {units:'kilometers'}) * 1000) * 4;
         }
         polygons.forEach(p => { m2 += turf.area(p); });
         document.getElementById('surface-val').innerText = Math.round(m2);
@@ -225,10 +235,11 @@
         toggleHistory();
         document.getElementById('exit-lecture').style.display = 'block';
         const { data } = await _supabase.from('trajets').select('latitude, longitude').eq('session_id', sid).order('created_at', {ascending: true});
+        if (!data) return;
         const pts = data.map(p => [p.latitude, p.longitude]);
         polyline.setLatLngs(pts);
         if (pts.length > 0) {
-            map.fitBounds(polyline.getBounds(), { padding: [40, 40] });
+            map.fitBounds(polyline.getBounds(), { padding: [20, 20] });
             marker.setLatLng(pts[pts.length - 1]);
         }
     }
@@ -236,19 +247,21 @@
     function quitterLecture() {
         modeLecture = false;
         document.getElementById('exit-lecture').style.display = 'none';
-        polyline.setLatLngs(routeLngLat.map(p => [p, p])); // Rebasculer sur le trajet en cours
+        polyline.setLatLngs(routeLngLat.map(p => [p[1], p[0]])); 
         recenterMap();
     }
 
     function recenterMap() {
         if (routeLngLat.length > 0) {
             const last = routeLngLat[routeLngLat.length - 1];
-            map.setView([last, last], 18);
+            map.setView([last[1], last[0]], 18);
         }
     }
 
     async function deconnexion() { await _supabase.auth.signOut(); location.reload(); }
+}
 </script>
 </body>
 </html>
+
 
