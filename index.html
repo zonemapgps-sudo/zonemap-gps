@@ -2,20 +2,20 @@
 <html lang="fr">
 <head>
     <meta charset="utf-8" />
-    <title>Zone Map - Conquête Totale</title>
+    <title>Zone Map - Conquête 2025</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 
-    <!-- LIBRAIRIES (Tes liens stables 2025) -->
+    <!-- LIBRAIRIES STABLES -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-    <script src="https://app.unpkg.com/"></script>
+    <script src="https://app.unpkg.com/turf@3.0.14"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    
+
     <style>
         html, body { height: 100%; margin: 0; padding: 0; background: #1a1a1a; font-family: sans-serif; overflow: hidden; width: 100vw; }
         #map { position: absolute; top: 0; bottom: 0; width: 100%; height: 100%; z-index: 1; }
 
-        /* ÉCRAN D'ACCUEIL */
+        /* ACCUEIL */
         #auth-screen {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: #0f0f0f; color: white; z-index: 2000; 
@@ -36,62 +36,59 @@
             background: rgba(255, 255, 255, 0.95); padding: 15px; border-radius: 12px; 
             display: none; box-shadow: 0 4px 15px rgba(0,0,0,0.3); min-width: 160px;
         }
-        #score-display { font-size: 22px; font-weight: bold; color: #ff3b30; display: block; margin-bottom: 5px; }
+        #score-display { font-size: 22px; font-weight: bold; color: #ff3b30; }
         #status-dot { height: 10px; width: 10px; background-color: #bbb; border-radius: 50%; display: inline-block; }
         .active-gps #status-dot { background-color: #ff0000; animation: blink 1s infinite; }
         @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }
 
-        /* HISTORIQUE */
         #hist-toggle { position: absolute; top: 15px; right: 15px; z-index: 1000; padding: 12px; border-radius: 50%; background: white; border: none; cursor: pointer; display: none; box-shadow: 0 2px 10px rgba(0,0,0,0.3); }
         #history-sidebar {
             position: fixed; top: 0; right: 0; width: 280px; height: 100%;
             background: white; z-index: 3000; transition: transform 0.3s ease;
-            transform: translateX(100%); padding: 20px; box-shadow: -5px 0 15px rgba(0,0,0,0.2); overflow-y: auto; box-sizing: border-box;
+            transform: translateX(100%); padding: 20px; overflow-y: auto; box-sizing: border-box;
         }
         #history-sidebar.open { transform: translateX(0); }
-        .hist-item { padding: 12px; border-bottom: 1px solid #eee; cursor: pointer; }
+        .hist-item { padding: 12px; border-bottom: 1px solid #eee; cursor: pointer; font-size: 13px; }
     </style>
 </head>
 <body>
 
 <div id="auth-screen">
     <div class="hero-header">
-        <h1 style="margin:0; font-size: 2.5rem; letter-spacing: -1px;">Zone Map</h1>
-        <p style="margin:5px 0 0 0; opacity: 0.8; font-weight: bold;">CONQUÊTE TERRITORIALE</p>
+        <h1 style="margin:0;">Zone Map</h1>
+        <p style="margin:5px 0 0 0; opacity: 0.8; font-weight: bold;">CONQUÊTE</p>
     </div>
     <div class="auth-container">
-        <input type="text" id="username" placeholder="Pseudo (uniquement inscription)">
+        <input type="text" id="username" placeholder="Pseudo (inscription)">
         <input type="email" id="email" placeholder="Email">
         <input type="password" id="password" placeholder="Mot de passe">
-        <button class="btn-auth" style="background:#fff; color:#003d7a;" onclick="connexion()">SE CONNECTER</button>
+        <button class="btn-auth" style="background:#fff;" onclick="connexion()">SE CONNECTER</button>
         <button class="btn-auth" style="background:transparent; color:#fff; border:1px solid #fff;" onclick="inscription()">Créer un compte</button>
-        <div id="auth-msg" style="margin-top:10px; font-size: 0.7rem;"></div>
+        <div id="auth-msg" style="margin-top:10px; font-size: 11px; color: #ff3b30;"></div>
     </div>
 </div>
 
 <div class="ui-panel" id="controls">
     <div id="score-display"><span id="surface-val">0</span> m²</div>
-    <div><span id="status-dot"></span> <span id="status-text" style="font-weight:bold; font-size:12px;">Prêt</span></div>
-    <div style="font-size: 11px; color: #666; margin-top: 5px;">User: <span id="user-display" style="font-weight:bold; color:#007bff;">...</span></div>
-    <button onclick="recenterMap()" style="margin-top:10px; width:100%; padding:8px; border-radius:5px; border:1px solid #ccc; background:white; cursor:pointer;">📍 Recentrer</button>
-    <button id="exit-lecture" onclick="quitterLecture()" style="display:none; margin-top:5px; width:100%; padding:8px; background:#ff3b30; color:white; border:none; border-radius:5px; font-weight:bold;">Quitter Historique</button>
-    <button onclick="deconnexion()" style="margin-top:10px; width:100%; font-size:10px; background:#f8f8f8; border:1px solid #ddd; padding:5px; border-radius:5px;">Déconnexion</button>
+    <div style="font-size: 12px;"><span id="status-dot"></span> <span id="status-text">Prêt</span></div>
+    <div style="font-size: 11px; color: #666; margin-top: 5px;">User: <span id="user-display" style="font-weight:bold;">...</span></div>
+    <button onclick="recenterMap()" style="margin-top:10px; width:100%; padding:5px;">📍 Recentrer</button>
+    <button id="exit-lecture" onclick="quitterLecture()" style="display:none; margin-top:5px; width:100%; padding:5px; background:#ff3b30; color:white; border:none; border-radius:5px;">Quitter Historique</button>
+    <button onclick="deconnexion()" style="margin-top:10px; width:100%; font-size:10px;">Déconnexion</button>
 </div>
 
 <button id="hist-toggle" onclick="toggleHistory()">📂</button>
 
 <div id="history-sidebar">
-    <div style="display:flex; justify-content:space-between; align-items:center; border-bottom: 2px solid #ff3b30; padding-bottom:10px; margin-bottom:15px;">
-        <h3 style="margin:0;">Historique (7j)</h3>
-        <button onclick="toggleHistory()" style="border:none; background:none; font-size:24px; cursor:pointer;">&times;</button>
-    </div>
-    <div id="hist-list">Chargement...</div>
+    <h3>Historique (7j)</h3>
+    <div id="hist-list"></div>
+    <button onclick="toggleHistory()" style="margin-top:20px; width:100%;">Fermer</button>
 </div>
 
 <div id="map"></div>
 
 <script>
-        const SUPABASE_URL = 'https://unwzavmahixfwyplhcxw.supabase.co';
+    const SUPABASE_URL = 'https://unwzavmahixfwyplhcxw.supabase.co';
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVud3phdm1haGl4Znd5cGxoY3h3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY1NjA0NzYsImV4cCI6MjA4MjEzNjQ3Nn0.I4YtMgaIKt17UGr3EfGf0L186GQSlv2puF_EzabP1B0';
     const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
@@ -110,7 +107,8 @@
         map = L.map('map', { zoomControl: false }).setView([46.6, 2.2], 5);
         L.tileLayer('https://{s}{z}/{x}/{y}{r}.png').addTo(map);
         polyline = L.polyline([], {color: '#ff3b30', weight: 12, opacity: 0.7}).addTo(map);
-        marker = L.circleMarker([0, 0], { radius: 7, color: '#007aff', fillColor: 'white', fillOpacity: 1, weight: 3 }).addTo(map);
+        // Important : Coordonnées fixes au départ pour éviter les bugs Leaflet
+        marker = L.circleMarker([46.6, 2.2], { radius: 7, color: '#007aff', fillColor: 'white', fillOpacity: 1, weight: 3 }).addTo(map);
     }
 
     async function verifierSession() {
@@ -122,32 +120,27 @@
         const email = document.getElementById('email').value;
         const password = document.getElementById('password').value;
         const username = document.getElementById('username').value;
-        if(!username) { alert("Pseudo requis !"); return; }
+        if(!username || !email || !password) { alert("Remplissez tous les champs !"); return; }
         const { error } = await _supabase.auth.signUp({ email, password, options: { data: { display_name: username } } });
         if (error) document.getElementById('auth-msg').innerText = error.message;
-        else document.getElementById('auth-msg').innerText = "Compte créé !";
+        else alert("Compte créé ! Connectez-vous.");
     }
 
     async function connexion() {
         const email = document.getElementById('email').value;
         const password = document.getElementById('password').value;
+        if(!email || !password) { alert("Identifiants manquants !"); return; }
         const { data, error } = await _supabase.auth.signInWithPassword({ email, password });
         if (error) {
             document.getElementById('auth-msg').innerText = error.message;
-        } else if (data.user) {
+        } else if (data && data.user) {
             activerApp(data.user);
         }
     }
 
     function activerApp(user) {
         currentUser = user;
-        // Sécurité sur le pseudo
-        let pseudo = "Anonyme";
-        if (user.user_metadata && user.user_metadata.display_name) {
-            pseudo = user.user_metadata.display_name;
-        } else if (user.email) {
-            pseudo = user.email.split('@')[0];
-        }
+        let pseudo = (user.user_metadata && user.user_metadata.display_name) ? user.user_metadata.display_name : user.email.split('@')[0];
         
         document.getElementById('user-display').innerText = pseudo;
         document.getElementById('auth-screen').style.display = 'none';
@@ -158,8 +151,14 @@
         map.on('locationfound', (e) => {
             if (modeLecture) return;
             const p = [e.latlng.lng, e.latlng.lat];
-            routeLngLat.push(p);
             
+            // Éviter les doublons
+            if (routeLngLat.length > 0) {
+                const last = routeLngLat[routeLngLat.length-1];
+                if (last[0] === p[0] && last[1] === p[1]) return;
+            }
+
+            routeLngLat.push(p);
             polyline.addLatLng(e.latlng);
             marker.setLatLng(e.latlng);
             map.setView(e.latlng, 18);
@@ -180,11 +179,13 @@
         if (kinks.features.length > 0) {
             try {
                 const poly = turf.lineToPolygon(line);
-                L.geoJSON(poly, { style: { color: '#ff3b30', fillColor: '#ff3b30', fillOpacity: 0.3, weight: 1 } }).addTo(map);
-                polygons.push(poly);
-                routeLngLat = [routeLngLat[routeLngLat.length - 1]];
-                polyline.setLatLngs([]);
-            } catch(err) { console.log("Boucle complexe"); }
+                if (poly) {
+                    L.geoJSON(poly, { style: { color: '#ff3b30', fillColor: '#ff3b30', fillOpacity: 0.3, weight: 1 } }).addTo(map);
+                    polygons.push(poly);
+                    routeLngLat = [routeLngLat[routeLngLat.length - 1]];
+                    polyline.setLatLngs([]);
+                }
+            } catch(err) { console.log("Boucle non fermable"); }
         }
     }
 
@@ -219,29 +220,26 @@
             .gt('created_at', septJours.toISOString())
             .order('created_at', { ascending: false });
 
-        if (error) { list.innerHTML = "Erreur Cloud"; return; }
+        if (error || !data) { list.innerHTML = "Erreur"; return; }
         
         const uniques = [...new Map(data.map(item => [item.session_id, item])).values()];
         list.innerHTML = uniques.map(s => `
             <div class="hist-item" onclick="afficherHistorique('${s.session_id}')">
                 <b>Trajet du ${new Date(s.created_at).toLocaleDateString()}</b><br>
-                <small>⌚ ${new Date(s.created_at).toLocaleTimeString()}</small>
+                <small>${new Date(s.created_at).toLocaleTimeString()}</small>
             </div>
-        `).join('') || "Aucun trajet récent.";
+        `).join('') || "Aucun trajet.";
     }
 
     async function afficherHistorique(sid) {
-        modeLecture = true;
-        toggleHistory();
+        modeLecture = true; toggleHistory();
         document.getElementById('exit-lecture').style.display = 'block';
         const { data } = await _supabase.from('trajets').select('latitude, longitude').eq('session_id', sid).order('created_at', {ascending: true});
-        if (!data) return;
+        if (!data || data.length === 0) return;
         const pts = data.map(p => [p.latitude, p.longitude]);
         polyline.setLatLngs(pts);
-        if (pts.length > 0) {
-            map.fitBounds(polyline.getBounds(), { padding: [20, 20] });
-            marker.setLatLng(pts[pts.length - 1]);
-        }
+        map.fitBounds(polyline.getBounds(), { padding: [30, 30] });
+        marker.setLatLng(pts[pts.length - 1]);
     }
 
     function quitterLecture() {
@@ -259,9 +257,6 @@
     }
 
     async function deconnexion() { await _supabase.auth.signOut(); location.reload(); }
-}
 </script>
 </body>
 </html>
-
-
