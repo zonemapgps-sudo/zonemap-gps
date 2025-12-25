@@ -160,56 +160,53 @@ function activerApp(user) {
     map.invalidateSize();
 
     map.locate({ watch: true, enableHighAccuracy: true });
-    map.on('locationfound', (e) => {
-        if (modeLecture) return;
-        const p = [e.latlng.lng, e.latlng.lat];
-        
-        routeLngLat.push(p);
-        polyline.addLatLng(e.latlng);
-        marker.setLatLng(e.latlng);
-        map.setView(e.latlng, 18);
-        
-        document.getElementById('controls').classList.add('active-gps');
-        document.getElementById('status-text').innerText = "Conquête...";
-        
-        detecterBoucle();
-        calculerSurface();
-        sauvegarder(e.latlng.lat, e.latlng.lng);
-    });
-}
+  map.on('locationfound', (e) => {
+    if (modeLecture) return;
+    const p = [e.latlng.lng, e.latlng.lat];
+    
+    routeLngLat.push(p);
+    polyline.addLatLng(e.latlng);
+    marker.setLatLng(e.latlng);
+    map.setView(e.latlng, 18);
+    
+    document.getElementById('controls').classList.add('active-gps');
+    document.getElementById('status-text').innerText = "Conquête...";
+    
+    detecterBoucle();
+    
+    // Calcul de la surface actuelle
+    const surfaceActuelle = calculerSurface(); 
+    
+    // Affichage UI
+    document.getElementById('surface-val').innerText = Math.round(surfaceActuelle);
+    
+    // Sauvegarde en base avec la surface
+    sauvegarder(e.latlng.lat, e.latlng.lng, surfaceActuelle);
+});
 
-function detecterBoucle() {
-    if (routeLngLat.length < 4) return;
-    const line = turf.lineString(routeLngLat);
-    const kinks = turf.lineIntersect(line, line);
-    if (kinks.features.length > 0) {
-        try {
-            const poly = turf.lineToPolygon(line);
-            if (poly) {
-                L.geoJSON(poly, { style: { color: '#ff3b30', fillColor: '#ff3b30', fillOpacity: 0.3, weight: 1 } }).addTo(map);
-                polygons.push(poly);
-                routeLngLat = [routeLngLat[routeLngLat.length - 1]];
-                polyline.setLatLngs([]);
-            }
-        } catch(err) { console.warn("Boucle complexe"); }
-    }
-}
-
+// Modifier calculerSurface pour qu'elle RETOURNE la valeur
 function calculerSurface() {
     let m2 = 0;
     if (routeLngLat.length > 1) {
         const line = turf.lineString(routeLngLat);
+        // Calcul du ruban de 4m de large
         m2 += (turf.length(line, {units:'kilometers'}) * 1000) * 4;
     }
+    // Ajout des surfaces de boucles fermées
     polygons.forEach(p => { m2 += turf.area(p); });
-    document.getElementById('surface-val').innerText = Math.round(m2);
+    return m2;
 }
 
-async function sauvegarder(lat, lng) {
+async function sauvegarder(lat, lng, surface) {
     if (!currentUser) return;
-    await _supabase.from('trajets').insert([{ latitude: lat, longitude: lng, session_id: sessionID, user_id: currentUser.id }]);
+    await _supabase.from('trajets').insert([{ 
+        latitude: lat, 
+        longitude: lng, 
+        session_id: sessionID, 
+        user_id: currentUser.id,
+        surface_m2: surface // Nouvelle donnée sauvegardée
+    }]);
 }
-
 function toggleHistory() {
     const s = document.getElementById('history-sidebar');
     s.classList.toggle('open');
@@ -269,5 +266,6 @@ async function deconnexion() { await _supabase.auth.signOut(); location.reload()
 </script>
 </body>
 </html>
+
 
 
