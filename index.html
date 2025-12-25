@@ -2,20 +2,20 @@
 <html lang="fr">
 <head>
     <meta charset="utf-8" />
-    <title>Zone Map - Conquête</title>
+    <title>Zone Map - Conquête Totale</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 
-    <!-- LIBRARIES -->
+    <!-- LIBRAIRIES (Tes liens stables 2025) -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
     <script src="https://app.unpkg.com/turf@3.0.14"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
+    
     <style>
-        html, body { height: 100%; margin: 0; background: #1a1a1a; font-family: sans-serif; overflow: hidden; width: 100vw; }
-        #map { position: absolute; top: 0; bottom: 0; width: 100%; z-index: 1; }
+        html, body { height: 100%; margin: 0; padding: 0; background: #1a1a1a; font-family: sans-serif; overflow: hidden; width: 100vw; }
+        #map { position: absolute; top: 0; bottom: 0; width: 100%; height: 100%; z-index: 1; }
 
-        /* ACCUEIL */
+        /* ÉCRAN D'ACCUEIL */
         #auth-screen {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: #0f0f0f; color: white; z-index: 2000; 
@@ -23,58 +23,69 @@
         }
         .hero-header {
             background: url('ZoneMapAccueil.png') no-repeat center center; background-size: cover;
-            padding: 60px 30px; border-radius: 25px; margin-bottom: 25px; position: relative;
-            width: 85%; max-width: 350px; box-shadow: inset 0 0 50px #000; border: 1px solid #333;
+            padding: 50px 30px; border-radius: 25px; width: 85%; max-width: 350px;
+            box-shadow: inset 0 0 50px #000; border: 1px solid #333; margin-bottom: 20px;
         }
-        .hero-header::before { content: ""; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.3); z-index: 1; }
-        .hero-header h1, .hero-header p { position: relative; z-index: 2; margin: 0; }
-        .auth-container { background: rgba(255,255,255,0.1); padding: 25px; border-radius: 20px; backdrop-filter: blur(15px); width: 85%; max-width: 320px; }
-        input { width: 100%; padding: 12px; margin: 6px 0; border-radius: 8px; border: none; }
+        .auth-container { background: rgba(255, 255, 255, 0.1); padding: 25px; border-radius: 20px; backdrop-filter: blur(15px); width: 85%; max-width: 320px; }
+        input { width: 100%; padding: 12px; margin: 6px 0; border-radius: 8px; border: none; box-sizing: border-box; }
         .btn-auth { width: 100%; padding: 12px; margin-top: 10px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; }
 
-        /* UI */
-        .ui-panel { position: absolute; top: 15px; left: 15px; z-index: 1000; background: rgba(255,255,255,0.9); padding: 15px; border-radius: 12px; display: none; }
-        #score-box { font-size: 20px; font-weight: bold; color: #ff3b30; }
+        /* UI PANEL */
+        .ui-panel {
+            position: absolute; top: 15px; left: 15px; z-index: 1000;
+            background: rgba(255, 255, 255, 0.95); padding: 15px; border-radius: 12px; 
+            display: none; box-shadow: 0 4px 15px rgba(0,0,0,0.3); min-width: 160px;
+        }
+        #score-display { font-size: 22px; font-weight: bold; color: #ff3b30; display: block; margin-bottom: 5px; }
         #status-dot { height: 10px; width: 10px; background-color: #bbb; border-radius: 50%; display: inline-block; }
         .active-gps #status-dot { background-color: #ff0000; animation: blink 1s infinite; }
         @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }
 
-        #hist-toggle { position: absolute; top: 15px; right: 15px; z-index: 1000; padding: 12px; border-radius: 50%; background: white; border: none; cursor: pointer; display: none; }
-        #history-sidebar { position: fixed; top: 0; right: 0; width: 280px; height: 100%; background: white; z-index: 3000; transition: transform 0.3s; transform: translateX(100%); padding: 20px; overflow-y: auto; }
+        /* HISTORIQUE */
+        #hist-toggle { position: absolute; top: 15px; right: 15px; z-index: 1000; padding: 12px; border-radius: 50%; background: white; border: none; cursor: pointer; display: none; box-shadow: 0 2px 10px rgba(0,0,0,0.3); }
+        #history-sidebar {
+            position: fixed; top: 0; right: 0; width: 280px; height: 100%;
+            background: white; z-index: 3000; transition: transform 0.3s ease;
+            transform: translateX(100%); padding: 20px; box-shadow: -5px 0 15px rgba(0,0,0,0.2); overflow-y: auto; box-sizing: border-box;
+        }
         #history-sidebar.open { transform: translateX(0); }
-        .hist-item { padding: 12px; border-bottom: 1px solid #eee; cursor: pointer; font-size: 13px; }
+        .hist-item { padding: 12px; border-bottom: 1px solid #eee; cursor: pointer; }
     </style>
 </head>
 <body>
 
 <div id="auth-screen">
     <div class="hero-header">
-        <h1>Zone Map</h1>
-        <p>CONQUÊTE 2025</p>
+        <h1 style="margin:0; font-size: 2.5rem; letter-spacing: -1px;">Zone Map</h1>
+        <p style="margin:5px 0 0 0; opacity: 0.8; font-weight: bold;">CONQUÊTE TERRITORIALE</p>
     </div>
     <div class="auth-container">
-        <input type="text" id="username" placeholder="Pseudo (inscription)">
+        <input type="text" id="username" placeholder="Pseudo (uniquement inscription)">
         <input type="email" id="email" placeholder="Email">
         <input type="password" id="password" placeholder="Mot de passe">
-        <button class="btn-auth" style="background:#fff;" onclick="connexion()">SE CONNECTER</button>
+        <button class="btn-auth" style="background:#fff; color:#003d7a;" onclick="connexion()">SE CONNECTER</button>
         <button class="btn-auth" style="background:transparent; color:#fff; border:1px solid #fff;" onclick="inscription()">Créer un compte</button>
-        <div id="auth-msg" style="font-size:10px; margin-top:10px;"></div>
+        <div id="auth-msg" style="margin-top:10px; font-size: 0.7rem;"></div>
     </div>
 </div>
 
 <div class="ui-panel" id="controls">
-    <div id="score-box"><span id="surface-val">0</span> m²</div>
-    <div style="font-size:12px;"><span id="status-dot"></span> <span id="status-text">Prêt</span></div>
-    <button onclick="recenterMap()" style="width:100%; margin-top:10px; padding:5px;">📍 Recentrer</button>
-    <button id="exit-lecture" onclick="quitterLecture()" style="display:none; background:#ff3b30; color:white; width:100%; margin-top:5px; border:none; padding:5px; border-radius:5px;">Quitter Historique</button>
-    <button onclick="deconnexion()" style="width:100%; margin-top:10px; font-size:10px;">Déconnexion</button>
+    <div id="score-display"><span id="surface-val">0</span> m²</div>
+    <div><span id="status-dot"></span> <span id="status-text" style="font-weight:bold; font-size:12px;">Prêt</span></div>
+    <div style="font-size: 11px; color: #666; margin-top: 5px;">User: <span id="user-display" style="font-weight:bold; color:#007bff;">...</span></div>
+    <button onclick="recenterMap()" style="margin-top:10px; width:100%; padding:8px; border-radius:5px; border:1px solid #ccc; background:white; cursor:pointer;">📍 Recentrer</button>
+    <button id="exit-lecture" onclick="quitterLecture()" style="display:none; margin-top:5px; width:100%; padding:8px; background:#ff3b30; color:white; border:none; border-radius:5px; font-weight:bold;">Quitter Historique</button>
+    <button onclick="deconnexion()" style="margin-top:10px; width:100%; font-size:10px; background:#f8f8f8; border:1px solid #ddd; padding:5px; border-radius:5px;">Déconnexion</button>
 </div>
 
 <button id="hist-toggle" onclick="toggleHistory()">📂</button>
+
 <div id="history-sidebar">
-    <h3>Historique (7j)</h3>
-    <div id="hist-list"></div>
-    <button onclick="toggleHistory()" style="width:100%; margin-top:20px;">Fermer</button>
+    <div style="display:flex; justify-content:space-between; align-items:center; border-bottom: 2px solid #ff3b30; padding-bottom:10px; margin-bottom:15px;">
+        <h3 style="margin:0;">Historique (7j)</h3>
+        <button onclick="toggleHistory()" style="border:none; background:none; font-size:24px; cursor:pointer;">&times;</button>
+    </div>
+    <div id="hist-list">Chargement...</div>
 </div>
 
 <div id="map"></div>
@@ -84,12 +95,13 @@
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVud3phdm1haGl4Znd5cGxoY3h3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY1NjA0NzYsImV4cCI6MjA4MjEzNjQ3Nn0.I4YtMgaIKt17UGr3EfGf0L186GQSlv2puF_EzabP1B0';
     const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    let map, polyline, marker, currentUser;
-    let routeLngLat = []; // Pour Turf [lng, lat]
-    let polygons = [];
+    let map, polyline, marker, currentUser = null;
+    let routeLngLat = []; // [lng, lat] pour Turf
+    let polygons = []; 
+    let modeLecture = false;
     const sessionID = "session_" + Date.now();
 
-    window.onload = () => {
+    window.onload = function() {
         initMap();
         verifierSession();
     };
@@ -98,7 +110,7 @@
         map = L.map('map', { zoomControl: false }).setView([46.6, 2.2], 5);
         L.tileLayer('https://{s}{z}/{x}/{y}{r}.png').addTo(map);
         polyline = L.polyline([], {color: '#ff3b30', weight: 12, opacity: 0.7}).addTo(map);
-        marker = L.circleMarker([0,0], { radius: 6, color: '#007aff', fillColor: '#fff', fillOpacity: 1 }).addTo(map);
+        marker = L.circleMarker(, { radius: 7, color: '#007aff', fillColor: 'white', fillOpacity: 1, weight: 3 }).addTo(map);
     }
 
     async function verifierSession() {
@@ -106,29 +118,34 @@
         if (session) activerApp(session.user);
     }
 
+    async function inscription() {
+        const email = document.getElementById('email').value;
+        const password = document.getElementById('password').value;
+        const username = document.getElementById('username').value;
+        if(!username) { alert("Pseudo requis !"); return; }
+        const { error } = await _supabase.auth.signUp({ email, password, options: { data: { display_name: username } } });
+        if (error) document.getElementById('auth-msg').innerText = error.message;
+        else document.getElementById('auth-msg').innerText = "Compte créé ! Connectez-vous.";
+    }
+
     async function connexion() {
         const email = document.getElementById('email').value;
         const password = document.getElementById('password').value;
         const { data, error } = await _supabase.auth.signInWithPassword({ email, password });
-        if (error) alert(error.message); else activerApp(data.user);
-    }
-
-    async function inscription() {
-        const email = document.getElementById('email').value;
-        const password = document.getElementById('password').value;
-        const user = document.getElementById('username').value;
-        const { error } = await _supabase.auth.signUp({ email, password, options: { data: { display_name: user } } });
-        if (error) alert(error.message); else alert("Compte créé !");
+        if (error) document.getElementById('auth-msg').innerText = error.message;
+        else activerApp(data.user);
     }
 
     function activerApp(user) {
         currentUser = user;
+        document.getElementById('user-display').innerText = user.user_metadata.display_name || user.email.split('@')[0];
         document.getElementById('auth-screen').style.display = 'none';
         document.getElementById('controls').style.display = 'block';
         document.getElementById('hist-toggle').style.display = 'block';
         
         map.locate({ watch: true, enableHighAccuracy: true });
         map.on('locationfound', (e) => {
+            if (modeLecture) return;
             const p = [e.latlng.lng, e.latlng.lat];
             routeLngLat.push(p);
             
@@ -152,11 +169,12 @@
         if (kinks.features.length > 0) {
             try {
                 const poly = turf.lineToPolygon(line);
-                L.geoJSON(poly, { style: { color: '#ff3b30', fillOpacity: 0.3 } }).addTo(map);
+                L.geoJSON(poly, { style: { color: '#ff3b30', fillColor: '#ff3b30', fillOpacity: 0.3, weight: 1 } }).addTo(map);
                 polygons.push(poly);
+                // On repart du dernier point pour la nouvelle boucle
                 routeLngLat = [routeLngLat[routeLngLat.length - 1]];
                 polyline.setLatLngs([]);
-            } catch(e) {}
+            } catch(err) { console.log("Boucle complexe"); }
         }
     }
 
@@ -164,7 +182,7 @@
         let m2 = 0;
         if (routeLngLat.length > 1) {
             const line = turf.lineString(routeLngLat);
-            m2 += (turf.length(line, {units:'kilometers'}) * 1000) * 4;
+            m2 += (turf.length(line, {units:'kilometers'}) * 1000) * 4; // Ruban 4m
         }
         polygons.forEach(p => { m2 += turf.area(p); });
         document.getElementById('surface-val').innerText = Math.round(m2);
@@ -191,36 +209,41 @@
             .gt('created_at', septJours.toISOString())
             .order('created_at', { ascending: false });
 
-        if (error) { list.innerHTML = "Erreur"; return; }
+        if (error) { list.innerHTML = "Erreur Cloud"; return; }
         
         const uniques = [...new Map(data.map(item => [item.session_id, item])).values()];
         list.innerHTML = uniques.map(s => `
             <div class="hist-item" onclick="afficherHistorique('${s.session_id}')">
                 <b>Trajet du ${new Date(s.created_at).toLocaleDateString()}</b><br>
-                <small>${new Date(s.created_at).toLocaleTimeString()}</small>
+                <small>⌚ ${new Date(s.created_at).toLocaleTimeString()}</small>
             </div>
-        `).join('') || "Aucun trajet.";
+        `).join('') || "Aucun trajet récent.";
     }
 
     async function afficherHistorique(sid) {
+        modeLecture = true;
         toggleHistory();
         document.getElementById('exit-lecture').style.display = 'block';
         const { data } = await _supabase.from('trajets').select('latitude, longitude').eq('session_id', sid).order('created_at', {ascending: true});
         const pts = data.map(p => [p.latitude, p.longitude]);
         polyline.setLatLngs(pts);
-        map.fitBounds(polyline.getBounds(), { padding: [30, 30] });
+        if (pts.length > 0) {
+            map.fitBounds(polyline.getBounds(), { padding: [40, 40] });
+            marker.setLatLng(pts[pts.length - 1]);
+        }
     }
 
     function quitterLecture() {
+        modeLecture = false;
         document.getElementById('exit-lecture').style.display = 'none';
-        polyline.setLatLngs(routeLngLat.map(p => [p[1], p[0]]));
+        polyline.setLatLngs(routeLngLat.map(p => [p, p])); // Rebasculer sur le trajet en cours
         recenterMap();
     }
 
-    function recenterMap() { 
+    function recenterMap() {
         if (routeLngLat.length > 0) {
-            const last = routeLngLat[routeLngLat.length-1];
-            map.setView([last[1], last[0]], 18);
+            const last = routeLngLat[routeLngLat.length - 1];
+            map.setView([last, last], 18);
         }
     }
 
@@ -228,4 +251,3 @@
 </script>
 </body>
 </html>
-
