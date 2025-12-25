@@ -264,6 +264,7 @@ async function afficherHistorique(sid) {
 function quitterLecture() {
     modeLecture = false;
     document.getElementById('exit-lecture').style.display = 'none';
+    // Correction de l'ordre [lat, lng] pour Leaflet
     const ptsActuels = routeLngLat.map(p => [p[1], p[0]]);
     polyline.setLatLngs(ptsActuels); 
     recenterMap();
@@ -280,5 +281,6 @@ async function deconnexion() { await _supabase.auth.signOut(); location.reload()
 </script>
 </body>
 </html>
+
 
 
