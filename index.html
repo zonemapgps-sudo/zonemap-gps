@@ -134,46 +134,47 @@ async function connexion() {
 
 function activerApp(user) {
     currentUser = user;
-    // ... (votre code pour l'affichage du pseudo et de l'interface) ...
+    
+    // AFFICHAGE INTERFACE (Indispensable pour débloquer l'écran)
+    let pseudo = (user.user_metadata && user.user_metadata.display_name) ? user.user_metadata.display_name : user.email.split('@')[0];
+    document.getElementById('user-display').innerText = pseudo;
+    document.getElementById('auth-screen').style.display = 'none';
+    document.getElementById('controls').style.display = 'block';
+    document.getElementById('hist-toggle').style.display = 'block';
+    map.invalidateSize();
 
-    // CONFIGURATION GPS RENFORCÉE
-    map.locate({ 
-        watch: true,                // INDISPENSABLE : continue de surveiller la position
-        enableHighAccuracy: true,   // Utilise le GPS réel au lieu du Wi-Fi
-        maximumAge: 0,              // Ne pas utiliser de position en cache (force le direct)
-        timeout: 10000              // Temps d'attente max pour chaque fix
-    });
+    // CONFIGURATION GPS
+    map.locate({ watch: true, enableHighAccuracy: true, maximumAge: 0, timeout: 10000 });
 
     map.on('locationfound', (e) => {
         if (modeLecture) return;
         
         const lat = e.latlng.lat;
         const lng = e.latlng.lng;
-        const p = [lng, lat];
+        const p = [lng, lat]; // Format Turf
 
-        // Sécurité anti-doublon : n'enregistrer que si on a bougé
+        // Sécurité anti-doublon
         if (routeLngLat.length > 0) {
             const last = routeLngLat[routeLngLat.length - 1];
-            // Si la position est identique à la précédente, on ignore pour économiser la base
             if (last[0] === lng && last[1] === lat) return;
         }
 
-        // 1. Mise à jour locale (Traçage sur la carte)
         routeLngLat.push(p);
         polyline.addLatLng(e.latlng);
         marker.setLatLng(e.latlng);
         map.setView(e.latlng, 18);
         
-        // 2. Calcul et affichage des m²
+        document.getElementById('controls').classList.add('active-gps');
+        document.getElementById('status-text').innerText = "Conquête...";
+
+        detecterBoucle();
         const surface = calculerSurface(); 
         document.getElementById('surface-val').innerText = Math.round(surface);
 
-        // 3. ENVOI À SUPABASE (Crée une nouvelle ligne à chaque mouvement)
         sauvegarder(lat, lng, surface);
     });
 
     map.on('locationerror', (e) => {
-        console.error("Erreur GPS : " + e.message);
         document.getElementById('status-text').innerText = "Erreur GPS";
     });
 }
@@ -197,49 +198,27 @@ function detecterBoucle() {
 
 function calculerSurface() {
     let m2Total = 0;
-
-    // 1. Calcul du ruban (trajet linéaire) sur l'ensemble des points de la session
     if (routeLngLat.length > 1) {
         const line = turf.lineString(routeLngLat);
         const distanceKm = turf.length(line, {units: 'kilometers'});
-        m2Total += (distanceKm * 1000) * 4; // Distance en m * 4m de large
+        m2Total += (distanceKm * 1000) * 4;
     }
-
-    // 2. Ajout des surfaces des boucles fermées détectées
-    polygons.forEach(p => {
-        m2Total += turf.area(p);
-    });
-
+    polygons.forEach(p => { m2Total += turf.area(p); });
     return m2Total;
 }
 
 async function sauvegarder(lat, lng, surface) {
     if (!currentUser) return;
-
     try {
-        // 1. Enregistrement du point (Table trajets)
-        const { error: err1 } = await _supabase.from('trajets').insert([{ 
-            latitude: lat, 
-            longitude: lng, 
-            session_id: sessionID, 
-            user_id: currentUser.id 
-        }]);
-        if (err1) console.error("Erreur table trajets:", err1.message);
-
-        // 2. Mise à jour du score global (Table sessions_conquete)
-        const { error: err2 } = await _supabase.from('sessions_conquete').upsert({
+        await _supabase.from('trajets').insert([{ latitude: lat, longitude: lng, session_id: sessionID, user_id: currentUser.id }]);
+        await _supabase.from('sessions_conquete').upsert({
             id_trajet: sessionID,
             user_id: currentUser.id,
             pseudo: document.getElementById('user-display').innerText,
             surface_totale: Math.round(surface),
             date_acquisition: new Date().toISOString()
         }, { onConflict: 'id_trajet' });
-        
-        if (err2) console.error("Erreur table sessions_conquete:", err2.message);
-
-    } catch (e) {
-        console.error("Erreur critique sauvegarde:", e);
-    }
+    } catch (e) { console.error(e); }
 }
 
 function toggleHistory() {
@@ -252,23 +231,15 @@ async function chargerHistorique() {
     const list = document.getElementById('hist-list');
     list.innerHTML = "Chargement...";
     const septJours = new Date(); septJours.setDate(septJours.getDate() - 7);
-    
-    // Requête simplifiée sur la table des résumés
-    const { data, error } = await _supabase.from('sessions_conquete')
-        .select('*')
-        .gt('date_acquisition', septJours.toISOString())
-        .order('date_acquisition', { ascending: false });
-
+    const { data, error } = await _supabase.from('sessions_conquete').select('*').gt('date_acquisition', septJours.toISOString()).order('date_acquisition', { ascending: false });
     if (error || !data) { list.innerHTML = "Erreur"; return; }
-    
     list.innerHTML = data.map(s => `
         <div class="hist-item" onclick="afficherHistorique('${s.id_trajet}')">
             <b>${s.surface_totale} m² capturés</b><br>
             <small>📅 ${new Date(s.date_acquisition).toLocaleDateString()}</small>
         </div>
-    `).join('') || "Aucune conquête récente.";
+    `).join('') || "Aucun trajet.";
 }
-
 
 async function afficherHistorique(sid) {
     modeLecture = true; toggleHistory();
@@ -284,7 +255,6 @@ async function afficherHistorique(sid) {
 function quitterLecture() {
     modeLecture = false;
     document.getElementById('exit-lecture').style.display = 'none';
-    // Correction de l'ordre [lat, lng] pour Leaflet
     const ptsActuels = routeLngLat.map(p => [p[1], p[0]]);
     polyline.setLatLngs(ptsActuels); 
     recenterMap();
@@ -298,9 +268,11 @@ function recenterMap() {
 }
 
 async function deconnexion() { await _supabase.auth.signOut(); location.reload(); }
+
 </script>
 </body>
 </html>
+
 
 
 
