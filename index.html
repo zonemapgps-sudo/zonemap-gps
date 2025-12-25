@@ -2,175 +2,270 @@
 <html lang="fr">
 <head>
     <meta charset="utf-8" />
-    <title>Zone Map - Conquête Géométrique</title>
+    <title>Zone Map - Conquête Territoriale</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+    <!-- CARTOGRAPHIE & GÉOMÉTRIE (2025) -->
   <!-- CARTOGRAPHIE -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-
-    <!-- BASE DE DONNEES (Lien stable 2025) -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="cdn.jsdelivr.net"></script>
     <script src="unpkg.com"></script>
 
+    <!-- BASE DE DONNEES -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
     <style>
-        html, body { height: 100%; margin: 0; background: #1a1a1a; font-family: sans-serif; overflow: hidden; }
+        html, body { 
+            height: 100%; margin: 0; padding: 0; 
+            background: #1a1a1a; font-family: 'Segoe UI', Roboto, sans-serif; 
+            overflow: hidden; width: 100vw; 
+        }
         #map { position: absolute; top: 0; bottom: 0; width: 100%; z-index: 1; }
-        
-        .hero-header {
-            background: url('ZoneMapAccueil.png') no-repeat center center; background-size: cover;
-            padding: 30px; border-radius: 20px; text-align: center; color: white;
-            box-shadow: inset 0 0 50px #000; border: 1px solid #333; margin-bottom: 20px;
-        }
 
+        /* ÉCRAN D'ACCUEIL */
         #auth-screen {
-            position: fixed; z-index: 2000; width: 100%; height: 100%;
-            background: #0f0f0f; display: flex; flex-direction: column; align-items: center; justify-content: center;
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: #0f0f0f; color: white; z-index: 2000; 
+            display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;
         }
 
-        .score-panel {
-            position: absolute; top: 10px; left: 10px; z-index: 1000;
-            background: rgba(0,0,0,0.85); color: white; padding: 15px; border-radius: 10px;
-            border-left: 5px solid #007aff; display: none; min-width: 150px;
+        .hero-header {
+            background: url('ZoneMapAccueil.png') no-repeat center center;
+            background-size: cover;
+            padding: 60px 30px;
+            border-radius: 25px;
+            margin-bottom: 25px;
+            position: relative;
+            width: 85%;
+            max-width: 350px;
+            box-shadow: inset 0 0 50px rgba(0,0,0,0.8), 0 10px 30px rgba(0,0,0,0.5);
+            border: 1px solid rgba(255,255,255,0.1);
+            overflow: hidden;
         }
 
-        .auth-container { background: rgba(255,255,255,0.1); padding: 20px; border-radius: 15px; backdrop-filter: blur(10px); width: 280px; }
-        input { width: 100%; padding: 10px; margin: 5px 0; border-radius: 5px; border: none; box-sizing: border-box; }
-        button { width: 100%; padding: 10px; border-radius: 5px; border: none; font-weight: bold; cursor: pointer; margin-top: 10px; }
+        .hero-header::before {
+            content: ""; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.3); z-index: 1;
+        }
+
+        .hero-header h1, .hero-header p { position: relative; z-index: 2; margin: 0; }
+
+        .auth-container { 
+            background: rgba(255, 255, 255, 0.1); padding: 25px; 
+            border-radius: 20px; backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px);
+            width: 85%; max-width: 320px; border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        input { width: 100%; padding: 12px; margin: 6px 0; border-radius: 8px; border: none; box-sizing: border-box; background: rgba(255,255,255,0.9); }
+        .btn-auth { width: 100%; padding: 12px; margin-top: 10px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; }
+        .btn-login { background: #fff; color: #003d7a; }
+        .btn-signup { background: transparent; color: #fff; border: 1px solid #fff; font-size: 0.8rem; }
+
+        /* UI JEU */
+        .ui-panel {
+            position: absolute; top: 15px; left: 15px; z-index: 1000;
+            background: rgba(255, 255, 255, 0.95); padding: 15px; border-radius: 12px; 
+            display: none; box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        }
+        #score-box { font-size: 18px; font-weight: bold; color: #ff3b30; margin-bottom: 5px; }
+
+        #status-dot { height: 10px; width: 10px; background-color: #bbb; border-radius: 50%; display: inline-block; margin-right: 5px; }
+        .active-gps #status-dot { background-color: #ff0000; animation: blink 1s infinite; }
+        @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }
+
+        #hist-toggle { position: absolute; top: 15px; right: 15px; z-index: 1000; padding: 12px; border-radius: 50%; background: white; border: none; box-shadow: 0 2px 10px rgba(0,0,0,0.3); cursor: pointer; display: none; }
+        #history-sidebar {
+            position: fixed; top: 0; right: 0; width: 280px; height: 100%;
+            background: white; z-index: 3000; transition: transform 0.3s ease;
+            transform: translateX(100%); padding: 20px; box-shadow: -5px 0 15px rgba(0,0,0,0.2); overflow-y: auto; box-sizing: border-box;
+        }
+        #history-sidebar.open { transform: translateX(0); }
+        .hist-item { padding: 12px; border-bottom: 1px solid #eee; cursor: pointer; }
     </style>
 </head>
 <body>
 
 <div id="auth-screen">
     <div class="hero-header">
-        <h1>ZONE MAP</h1>
-        <p>Tracez pour capturer</p>
+        <h1 style="font-size: 2.8rem; letter-spacing: -2px;">Zone Map</h1>
+        <p style="font-size: 0.9rem; font-weight: bold; text-transform: uppercase;">C'est la guerre !</p>
     </div>
-    <div class="auth-container">
+    <div class="auth-container" id="login-form">
+        <input type="text" id="username" placeholder="Pseudo (uniquement inscription)">
         <input type="email" id="email" placeholder="Email">
         <input type="password" id="password" placeholder="Mot de passe">
-        <button style="background:#007aff; color:white;" onclick="connexion()">ENTRER</button>
+        <button class="btn-auth btn-login" onclick="connexion()">SE CONNECTER</button>
+        <button class="btn-auth btn-signup" onclick="inscription()">Créer un compte</button>
+        <div id="auth-msg" style="margin-top:15px; font-size: 0.7rem;"></div>
     </div>
 </div>
 
-<div class="score-panel" id="ui-jeu">
-    <div style="font-size:0.7rem; opacity:0.6; text-transform:uppercase;">Surface Capturée</div>
-    <div id="surface-val" style="font-size:1.4rem; font-weight:bold; color:#007aff;">0 m²</div>
-    <div id="pseudo-display" style="font-size:0.8rem; margin-top:5px;">Joueur: ...</div>
+<div class="ui-panel" id="controls">
+    <div id="score-box"><span id="surface-val">0</span> m²</div>
+    <div><span id="status-dot"></span> <span id="status-text" style="font-weight:bold;">Prêt</span></div>
+    <div style="font-size: 11px; color: #666;">User: <span id="user-display" style="font-weight:bold; color:#007bff;">...</span></div>
+    <button onclick="recenterMap()" style="margin-top:10px; width:100%; padding:8px; border-radius:5px; border:1px solid #ccc; background:white; cursor:pointer;">📍 Recentrer</button>
+    <button id="exit-lecture" onclick="quitterLecture()" style="display:none; background:#ff3b30; color:white; border:none; padding:8px; width:100%; border-radius:5px; margin-top:5px;">❌ Quitter Historique</button>
+    <button onclick="deconnexion()" style="margin-top:10px; width:100%; font-size:10px; background:#f8f8f8; border:1px solid #ddd; padding:5px; border-radius:5px;">Déconnexion</button>
+</div>
+
+<button id="hist-toggle" onclick="toggleHistory()">📂</button>
+
+<div id="history-sidebar">
+    <div style="display:flex; justify-content:space-between; align-items:center; border-bottom: 2px solid #007bff; padding-bottom:10px; margin-bottom:15px;">
+        <h3 style="margin:0;">Historique (7j)</h3>
+        <button onclick="toggleHistory()" style="border:none; background:none; font-size:24px;">&times;</button>
+    </div>
+    <div id="hist-list">Chargement...</div>
 </div>
 
 <div id="map"></div>
 
 <script>
-    // --- CONFIGURATION ---
     const SUPABASE_URL = 'https://unwzavmahixfwyplhcxw.supabase.co';
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVud3phdm1haGl4Znd5cGxoY3h3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY1NjA0NzYsImV4cCI6MjA4MjEzNjQ3Nn0.I4YtMgaIKt17UGr3EfGf0L186GQSlv2puF_EzabP1B0';
     const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    let map, polyline, currentUser;
-    let trajetCoords = []; // Liste de [lng, lat] pour Turf
-    let zonesPolygones = []; // Stockage des zones fermées
-    const LARGEUR_TRAJET = 4; // Largeur en mètres
+    var map, route = [], polyline, marker, currentUser = null;
+    var polygons = []; // Stockage des zones fermées
+    var modeLecture = false; 
+    const sessionID = "session_" + Date.now();
+    const LARGEUR_M = 4; // Largeur du trajet en mètres
 
-    window.onload = () => {
-        map = L.map('map', { zoomControl: false }).setView([46, 2], 6);
-        L.tileLayer('https://{s}{z}/{x}/{y}{r}.png').addTo(map);
-        
-        // Style du ruban de marche
-        polyline = L.polyline([], {
-            color: '#007aff', 
-            weight: 12, // Équivalent visuel à ~4m à haut zoom
-            opacity: 0.6,
-            lineCap: 'round'
-        }).addTo(map);
-
+    window.onload = function() {
+        setupMap();
         verifierSession();
     };
 
     async function verifierSession() {
         const { data: { session } } = await _supabase.auth.getSession();
-        if (session) demarrerJeu(session.user);
+        if (session) activerApp(session.user);
+    }
+
+    async function inscription() {
+        const email = document.getElementById('email').value;
+        const password = document.getElementById('password').value;
+        const username = document.getElementById('username').value;
+        if(!username) { alert("Pseudo obligatoire !"); return; }
+        const { data, error } = await _supabase.auth.signUp({
+            email, password, options: { data: { display_name: username } }
+        });
+        if (error) document.getElementById('auth-msg').innerText = error.message;
+        else document.getElementById('auth-msg').innerText = "Vérifiez vos emails !";
     }
 
     async function connexion() {
         const email = document.getElementById('email').value;
         const password = document.getElementById('password').value;
         const { data, error } = await _supabase.auth.signInWithPassword({ email, password });
-        if (!error) demarrerJeu(data.user);
+        if (error) document.getElementById('auth-msg').innerText = error.message;
+        else activerApp(data.user);
     }
 
-    function demarrerJeu(user) {
+    function activerApp(user) {
         currentUser = user;
+        document.getElementById('user-display').innerHTML = user.user_metadata.display_name || user.email.split('@')[0];
         document.getElementById('auth-screen').style.display = 'none';
-        document.getElementById('ui-jeu').style.display = 'block';
-        document.getElementById('pseudo-display').innerText = user.email;
+        document.getElementById('controls').style.display = 'block';
+        document.getElementById('hist-toggle').style.display = 'block';
+        demarrerGps();
+    }
 
+    function setupMap() {
+        map = L.map('map', { zoomControl: false }).setView([46.6, 2.2], 5);
+        L.tileLayer('https://{s}{z}/{x}/{y}{r}.png').addTo(map);
+        
+        // Ruban de 4m de large (visuel)
+        polyline = L.polyline([], {color: '#ff3b30', weight: 12, opacity: 0.7}).addTo(map);
+        marker = L.circleMarker([0,0], { radius: 6, color: '#007aff', fillColor: 'white', fillOpacity: 1 }).addTo(map);
+    }
+
+    function demarrerGps() {
         map.locate({ watch: true, enableHighAccuracy: true });
-        map.on('locationfound', gererDeplacement);
+        map.on('locationfound', function(e) {
+            if (modeLecture) return;
+            const latlng = e.latlng;
+            document.getElementById('controls').classList.add('active-gps');
+            document.getElementById('status-text').innerHTML = "Conquête...";
+
+            route.push([latlng.lng, latlng.lat]); // Turf utilise [lng, lat]
+            polyline.addLatLng(latlng);
+            marker.setLatLng(latlng);
+            map.setView(latlng, 18);
+
+            detecterBoucle();
+            calculerSurface();
+            sauvegarderPoint(latlng.lat, latlng.lng);
+        });
     }
 
-    function gererDeplacement(e) {
-        const p = [e.latlng.lng, e.latlng.lat];
-        
-        // Éviter les points en doublon
-        if (trajetCoords.length > 0) {
-            const last = trajetCoords[trajetCoords.length - 1];
-            if (p[0] === last[0] && p[1] === last[1]) return;
-        }
-
-        trajetCoords.push(p);
-        
-        // Mise à jour de la ligne visuelle (Leaflet utilise lat,lng)
-        polyline.addLatLng(e.latlng);
-        map.setView(e.latlng, 18);
-
-        verifierIntersection();
-        calculerSurfaceTotale();
-    }
-
-    function verifierIntersection() {
-        if (trajetCoords.length < 4) return;
-
-        // Créer une ligne avec Turf
-        const line = turf.lineString(trajetCoords);
-        const kinks = turf.lineIntersect(line, line); // Trouve où la ligne se croise
+    function detecterBoucle() {
+        if (route.length < 4) return;
+        const line = turf.lineString(route);
+        const kinks = turf.lineIntersect(line, line);
 
         if (kinks.features.length > 0) {
-            // Une intersection a été trouvée !
-            // On transforme le trajet actuel en polygone
             try {
-                const polygon = turf.lineToPolygon(line);
-                if (polygon) {
-                    L.geoJSON(polygon, {
-                        style: { color: '#007aff', fillColor: '#007aff', fillOpacity: 0.3, weight: 1 }
-                    }).addTo(map);
-                    
-                    zonesPolygones.push(polygon);
-                    // On vide le trajet actuel pour recommencer une nouvelle boucle
-                    trajetCoords = [trajetCoords[trajetCoords.length - 1]]; 
+                const poly = turf.lineToPolygon(line);
+                if (poly) {
+                    L.geoJSON(poly, { style: { color: '#ff3b30', fillColor: '#ff3b30', fillOpacity: 0.3 } }).addTo(map);
+                    polygons.push(poly);
+                    // Reset du trajet pour éviter les boucles infinies sur le même point
+                    route = [route[route.length - 1]];
                     polyline.setLatLngs([]);
                 }
-            } catch (err) {
-                // Erreur si le polygone est invalide (trop petit ou complexe)
-            }
+            } catch(e) { console.log("Boucle trop complexe"); }
         }
     }
 
-    function calculerSurfaceTotale() {
-        let surfaceM2 = 0;
-
-        // 1. Surface du ruban (longueur trajet * 4m)
-        if (trajetCoords.length > 1) {
-            const line = turf.lineString(trajetCoords);
-            const lengthKm = turf.length(line, {units: 'kilometers'});
-            surfaceM2 += (lengthKm * 1000) * LARGEUR_TRAJET;
+    function calculerSurface() {
+        let totalM2 = 0;
+        // 1. Surface du ruban
+        if (route.length > 1) {
+            const line = turf.lineString(route);
+            totalM2 += (turf.length(line, {units: 'kilometers'}) * 1000) * LARGEUR_M;
         }
+        // 2. Surface des polygones
+        polygons.forEach(p => { totalM2 += turf.area(p); });
+        document.getElementById('surface-val').innerText = Math.round(totalM2);
+    }
 
-        // 2. Surface des zones fermées
-        zonesPolygones.forEach(poly => {
-            surfaceM2 += turf.area(poly);
-        });
+    async function sauvegarderPoint(lat, lng) {
+        if (!currentUser) return;
+        await _supabase.from('trajets').insert([{ latitude: lat, longitude: lng, session_id: sessionID, user_id: currentUser.id }]);
+    }
 
-        document.getElementById('surface-val').innerText = Math.round(surfaceM2) + " m²";
+    function recenterMap() { if (route.length > 0) map.setView([route[route.length-1][1], route[route.length-1][0]], 18); }
+    async function deconnexion() { await _supabase.auth.signOut(); location.reload(); }
+    
+    function toggleHistory() {
+        const s = document.getElementById('history-sidebar');
+        s.classList.toggle('open');
+        if (s.classList.contains('open')) chargerListeHistorique();
+    }
+
+    async function chargerListeHistorique() {
+        const list = document.getElementById('hist-list');
+        list.innerHTML = "Chargement...";
+        const { data } = await _supabase.from('trajets').select('session_id, created_at').order('created_at', { ascending: false });
+        const uniques = [...new Map(data.map(item => [item.session_id, item])).values()];
+        list.innerHTML = uniques.map(s => `<div class="hist-item" onclick="afficherUnTrajet('${s.session_id}')"><b>Trajet</b><br><small>${new Date(s.created_at).toLocaleString()}</small></div>`).join('');
+    }
+
+    async function afficherUnTrajet(sId) {
+        modeLecture = true; toggleHistory();
+        document.getElementById('exit-lecture').style.display = 'block';
+        const { data } = await _supabase.from('trajets').select('latitude, longitude').eq('session_id', sId).order('created_at', { ascending: true });
+        const pts = data.map(p => [p.latitude, p.longitude]);
+        polyline.setLatLngs(pts);
+        map.fitBounds(polyline.getBounds(), {padding: [30,30]});
+    }
+
+    function quitterLecture() {
+        modeLecture = false; 
+        document.getElementById('exit-lecture').style.display = 'none';
+        polyline.setLatLngs(route.map(p => [p[1], p[0]]));
+        recenterMap();
     }
 </script>
 </body>
