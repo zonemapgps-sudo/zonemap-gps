@@ -209,17 +209,40 @@ function calculerSurface() {
 
 async function sauvegarder(lat, lng, surface) {
     if (!currentUser) return;
+
     try {
-        await _supabase.from('trajets').insert([{ latitude: lat, longitude: lng, session_id: sessionID, user_id: currentUser.id }]);
-        await _supabase.from('sessions_conquete').upsert({
-            id_trajet: sessionID,
-            user_id: currentUser.id,
-            pseudo: document.getElementById('user-display').innerText,
-            surface_totale: Math.round(surface),
-            date_acquisition: new Date().toISOString()
-        }, { onConflict: 'id_trajet' });
-    } catch (e) { console.error(e); }
+        // --- ACTION 1 : INSERTION (Nouveau point dans l'historique) ---
+        // On utilise .insert() car on veut une NOUVELLE ligne à chaque fois
+        const { error: err1 } = await _supabase
+            .from('trajets')
+            .insert([{ 
+                latitude: lat, 
+                longitude: lng, 
+                session_id: sessionID, // Le même pour toute la balade
+                user_id: currentUser.id 
+            }]);
+
+        if (err1) console.error("Erreur table trajets:", err1.message);
+
+        // --- ACTION 2 : MISE À JOUR (Résumé de la conquête) ---
+        // On utilise .upsert() car on veut mettre à jour l'UNIQUE ligne du score final
+        const { error: err2 } = await _supabase
+            .from('sessions_conquete')
+            .upsert({
+                id_trajet: sessionID, // Clé de conflit pour l'update
+                user_id: currentUser.id,
+                pseudo: document.getElementById('user-display').innerText,
+                surface_totale: Math.round(surface),
+                date_acquisition: new Date().toISOString()
+            }, { onConflict: 'id_trajet' });
+        
+        if (err2) console.error("Erreur table sessions_conquete:", err2.message);
+
+    } catch (e) {
+        console.error("Erreur critique sauvegarde:", e);
+    }
 }
+
 
 function toggleHistory() {
     const s = document.getElementById('history-sidebar');
@@ -272,6 +295,7 @@ async function deconnexion() { await _supabase.auth.signOut(); location.reload()
 </script>
 </body>
 </html>
+
 
 
 
