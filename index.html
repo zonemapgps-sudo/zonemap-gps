@@ -134,27 +134,47 @@ async function connexion() {
 
 function activerApp(user) {
     currentUser = user;
-    let pseudo = (user.user_metadata && user.user_metadata.display_name) ? user.user_metadata.display_name : user.email.split('@')[0];
-    document.getElementById('user-display').innerText = pseudo;
-    document.getElementById('auth-screen').style.display = 'none';
-    document.getElementById('controls').style.display = 'block';
-    document.getElementById('hist-toggle').style.display = 'block';
-    map.invalidateSize();
+    // ... (votre code pour l'affichage du pseudo et de l'interface) ...
 
-    map.locate({ watch: true, enableHighAccuracy: true });
+    // CONFIGURATION GPS RENFORCÉE
+    map.locate({ 
+        watch: true,                // INDISPENSABLE : continue de surveiller la position
+        enableHighAccuracy: true,   // Utilise le GPS réel au lieu du Wi-Fi
+        maximumAge: 0,              // Ne pas utiliser de position en cache (force le direct)
+        timeout: 10000              // Temps d'attente max pour chaque fix
+    });
+
     map.on('locationfound', (e) => {
         if (modeLecture) return;
-        const p = [e.latlng.lng, e.latlng.lat];
+        
+        const lat = e.latlng.lat;
+        const lng = e.latlng.lng;
+        const p = [lng, lat];
+
+        // Sécurité anti-doublon : n'enregistrer que si on a bougé
+        if (routeLngLat.length > 0) {
+            const last = routeLngLat[routeLngLat.length - 1];
+            // Si la position est identique à la précédente, on ignore pour économiser la base
+            if (last[0] === lng && last[1] === lat) return;
+        }
+
+        // 1. Mise à jour locale (Traçage sur la carte)
         routeLngLat.push(p);
         polyline.addLatLng(e.latlng);
         marker.setLatLng(e.latlng);
         map.setView(e.latlng, 18);
-        document.getElementById('controls').classList.add('active-gps');
-        document.getElementById('status-text').innerText = "Conquête...";
-        detecterBoucle();
+        
+        // 2. Calcul et affichage des m²
         const surface = calculerSurface(); 
         document.getElementById('surface-val').innerText = Math.round(surface);
-        sauvegarder(e.latlng.lat, e.latlng.lng, surface);
+
+        // 3. ENVOI À SUPABASE (Crée une nouvelle ligne à chaque mouvement)
+        sauvegarder(lat, lng, surface);
+    });
+
+    map.on('locationerror', (e) => {
+        console.error("Erreur GPS : " + e.message);
+        document.getElementById('status-text').innerText = "Erreur GPS";
     });
 }
 
@@ -281,6 +301,7 @@ async function deconnexion() { await _supabase.auth.signOut(); location.reload()
 </script>
 </body>
 </html>
+
 
 
 
