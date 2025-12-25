@@ -89,175 +89,185 @@
 
 <script>
     const SUPABASE_URL = 'https://unwzavmahixfwyplhcxw.supabase.co';
-    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVud3phdm1haGl4Znd5cGxoY3h3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY1NjA0NzYsImV4cCI6MjA4MjEzNjQ3Nn0.I4YtMgaIKt17UGr3EfGf0L186GQSlv2puF_EzabP1B0';
-    const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVud3phdm1haGl4Znd5cGxoY3h3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY1NjA0NzYsImV4cCI6MjA4MjEzNjQ3Nn0.I4YtMgaIKt17UGr3EfGf0L186GQSlv2puF_EzabP1B0';
+const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    let map, polyline, marker, currentUser = null;
-    let routeLngLat = []; 
-    let polygons = []; 
-    let modeLecture = false;
-    const sessionID = "session_" + Date.now();
+let map, polyline, marker, currentUser = null;
+let routeLngLat = []; // Format Turf: [lng, lat]
+let polygons = []; 
+let modeLecture = false;
+const sessionID = "session_" + Date.now();
 
-    window.onload = function() {
-        initMap();
-        verifierSession();
-    };
+// Initialisation au chargement
+window.onload = function() {
+    initMap();
+    verifierSession();
+};
 
-    function initMap() {
-        map = L.map('map', { zoomControl: false }).setView([46.6, 2.2], 5);
-        L.tileLayer('https://{s}{z}/{x}/{y}{r}.png').addTo(map);
-        polyline = L.polyline([], {color: '#ff3b30', weight: 12, opacity: 0.7}).addTo(map);
-        // Important : Coordonnées fixes au départ pour éviter les bugs Leaflet
-        marker = L.circleMarker([46.6, 2.2], { radius: 7, color: '#007aff', fillColor: 'white', fillOpacity: 1, weight: 3 }).addTo(map);
+function initMap() {
+    // On crée la carte immédiatement
+    map = L.map('map', { zoomControl: false }).setView([46.6, 2.2], 5);
+    
+    // Fond de carte OpenStreetMap (Standard)
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap'
+    }).addTo(map);
+    
+    // Initialisation des couches de dessin
+    polyline = L.polyline([], {color: '#ff3b30', weight: 12, opacity: 0.7}).addTo(map);
+    marker = L.circleMarker([46.6, 2.2], { radius: 7, color: '#007aff', fillColor: 'white', fillOpacity: 1, weight: 3 }).addTo(map);
+    
+    // Correction bug d'affichage : forcer le redimensionnement
+    setTimeout(() => { map.invalidateSize(); }, 500);
+}
+
+async function verifierSession() {
+    const { data: { session } } = await _supabase.auth.getSession();
+    if (session && session.user) activerApp(session.user);
+}
+
+async function inscription() {
+    const email = document.getElementById('email').value;
+    const password = document.getElementById('password').value;
+    const username = document.getElementById('username').value;
+    if(!username || !email || !password) { alert("Remplissez tous les champs !"); return; }
+    const { error } = await _supabase.auth.signUp({ email, password, options: { data: { display_name: username } } });
+    if (error) document.getElementById('auth-msg').innerText = error.message;
+    else alert("Compte créé ! Connectez-vous.");
+}
+
+async function connexion() {
+    const email = document.getElementById('email').value;
+    const password = document.getElementById('password').value;
+    const { data, error } = await _supabase.auth.signInWithPassword({ email, password });
+    if (error) {
+        document.getElementById('auth-msg').innerText = error.message;
+    } else if (data && data.user) {
+        activerApp(data.user);
     }
+}
 
-    async function verifierSession() {
-        const { data: { session } } = await _supabase.auth.getSession();
-        if (session && session.user) activerApp(session.user);
-    }
+function activerApp(user) {
+    currentUser = user;
+    let pseudo = (user.user_metadata && user.user_metadata.display_name) ? user.user_metadata.display_name : user.email.split('@')[0];
+    
+    document.getElementById('user-display').innerText = pseudo;
+    document.getElementById('auth-screen').style.display = 'none';
+    document.getElementById('controls').style.display = 'block';
+    document.getElementById('hist-toggle').style.display = 'block';
+    
+    // On force le rafraîchissement de la carte lors de l'affichage
+    map.invalidateSize();
 
-    async function inscription() {
-        const email = document.getElementById('email').value;
-        const password = document.getElementById('password').value;
-        const username = document.getElementById('username').value;
-        if(!username || !email || !password) { alert("Remplissez tous les champs !"); return; }
-        const { error } = await _supabase.auth.signUp({ email, password, options: { data: { display_name: username } } });
-        if (error) document.getElementById('auth-msg').innerText = error.message;
-        else alert("Compte créé ! Connectez-vous.");
-    }
-
-    async function connexion() {
-        const email = document.getElementById('email').value;
-        const password = document.getElementById('password').value;
-        if(!email || !password) { alert("Identifiants manquants !"); return; }
-        const { data, error } = await _supabase.auth.signInWithPassword({ email, password });
-        if (error) {
-            document.getElementById('auth-msg').innerText = error.message;
-        } else if (data && data.user) {
-            activerApp(data.user);
-        }
-    }
-
-    function activerApp(user) {
-        currentUser = user;
-        let pseudo = (user.user_metadata && user.user_metadata.display_name) ? user.user_metadata.display_name : user.email.split('@')[0];
+    map.locate({ watch: true, enableHighAccuracy: true });
+    map.on('locationfound', (e) => {
+        if (modeLecture) return;
+        const p = [e.latlng.lng, e.latlng.lat];
         
-        document.getElementById('user-display').innerText = pseudo;
-        document.getElementById('auth-screen').style.display = 'none';
-        document.getElementById('controls').style.display = 'block';
-        document.getElementById('hist-toggle').style.display = 'block';
+        routeLngLat.push(p);
+        polyline.addLatLng(e.latlng);
+        marker.setLatLng(e.latlng);
+        map.setView(e.latlng, 18);
         
-        map.locate({ watch: true, enableHighAccuracy: true });
-        map.on('locationfound', (e) => {
-            if (modeLecture) return;
-            const p = [e.latlng.lng, e.latlng.lat];
-            
-            // Éviter les doublons
-            if (routeLngLat.length > 0) {
-                const last = routeLngLat[routeLngLat.length-1];
-                if (last[0] === p[0] && last[1] === p[1]) return;
+        document.getElementById('controls').classList.add('active-gps');
+        document.getElementById('status-text').innerText = "Conquête...";
+        
+        detecterBoucle();
+        calculerSurface();
+        sauvegarder(e.latlng.lat, e.latlng.lng);
+    });
+}
+
+function detecterBoucle() {
+    if (routeLngLat.length < 4) return;
+    const line = turf.lineString(routeLngLat);
+    const kinks = turf.lineIntersect(line, line);
+    if (kinks.features.length > 0) {
+        try {
+            const poly = turf.lineToPolygon(line);
+            if (poly) {
+                L.geoJSON(poly, { style: { color: '#ff3b30', fillColor: '#ff3b30', fillOpacity: 0.3, weight: 1 } }).addTo(map);
+                polygons.push(poly);
+                routeLngLat = [routeLngLat[routeLngLat.length - 1]];
+                polyline.setLatLngs([]);
             }
-
-            routeLngLat.push(p);
-            polyline.addLatLng(e.latlng);
-            marker.setLatLng(e.latlng);
-            map.setView(e.latlng, 18);
-            
-            document.getElementById('controls').classList.add('active-gps');
-            document.getElementById('status-text').innerText = "En direct";
-            
-            detecterBoucle();
-            calculerSurface();
-            sauvegarder(e.latlng.lat, e.latlng.lng);
-        });
+        } catch(err) { console.warn("Boucle complexe"); }
     }
+}
 
-    function detecterBoucle() {
-        if (routeLngLat.length < 4) return;
+function calculerSurface() {
+    let m2 = 0;
+    if (routeLngLat.length > 1) {
         const line = turf.lineString(routeLngLat);
-        const kinks = turf.lineIntersect(line, line);
-        if (kinks.features.length > 0) {
-            try {
-                const poly = turf.lineToPolygon(line);
-                if (poly) {
-                    L.geoJSON(poly, { style: { color: '#ff3b30', fillColor: '#ff3b30', fillOpacity: 0.3, weight: 1 } }).addTo(map);
-                    polygons.push(poly);
-                    routeLngLat = [routeLngLat[routeLngLat.length - 1]];
-                    polyline.setLatLngs([]);
-                }
-            } catch(err) { console.log("Boucle non fermable"); }
-        }
+        m2 += (turf.length(line, {units:'kilometers'}) * 1000) * 4;
     }
+    polygons.forEach(p => { m2 += turf.area(p); });
+    document.getElementById('surface-val').innerText = Math.round(m2);
+}
 
-    function calculerSurface() {
-        let m2 = 0;
-        if (routeLngLat.length > 1) {
-            const line = turf.lineString(routeLngLat);
-            m2 += (turf.length(line, {units:'kilometers'}) * 1000) * 4;
-        }
-        polygons.forEach(p => { m2 += turf.area(p); });
-        document.getElementById('surface-val').innerText = Math.round(m2);
+async function sauvegarder(lat, lng) {
+    if (!currentUser) return;
+    await _supabase.from('trajets').insert([{ latitude: lat, longitude: lng, session_id: sessionID, user_id: currentUser.id }]);
+}
+
+function toggleHistory() {
+    const s = document.getElementById('history-sidebar');
+    s.classList.toggle('open');
+    if (s.classList.contains('open')) chargerHistorique();
+}
+
+async function chargerHistorique() {
+    const list = document.getElementById('hist-list');
+    list.innerHTML = "Chargement...";
+    const septJours = new Date(); septJours.setDate(septJours.getDate() - 7);
+    
+    const { data, error } = await _supabase.from('trajets')
+        .select('session_id, created_at')
+        .gt('created_at', septJours.toISOString())
+        .order('created_at', { ascending: false });
+
+    if (error || !data) { list.innerHTML = "Erreur"; return; }
+    
+    const uniques = [...new Map(data.map(item => [item.session_id, item])).values()];
+    list.innerHTML = uniques.map(s => `
+        <div class="hist-item" onclick="afficherHistorique('${s.session_id}')">
+            <b>Trajet du ${new Date(s.created_at).toLocaleDateString()}</b><br>
+            <small>${new Date(s.created_at).toLocaleTimeString()}</small>
+        </div>
+    `).join('') || "Aucun trajet.";
+}
+
+async function afficherHistorique(sid) {
+    modeLecture = true; toggleHistory();
+    document.getElementById('exit-lecture').style.display = 'block';
+    const { data } = await _supabase.from('trajets').select('latitude, longitude').eq('session_id', sid).order('created_at', {ascending: true});
+    if (!data || data.length === 0) return;
+    const pts = data.map(p => [p.latitude, p.longitude]);
+    polyline.setLatLngs(pts);
+    map.fitBounds(polyline.getBounds(), { padding: [30, 30] });
+    marker.setLatLng(pts[pts.length - 1]);
+}
+
+function quitterLecture() {
+    modeLecture = false;
+    document.getElementById('exit-lecture').style.display = 'none';
+    // Reconvertir [lng, lat] de Turf en [lat, lng] pour Leaflet
+    const ptsActuels = routeLngLat.map(p => [p[1], p[0]]);
+    polyline.setLatLngs(ptsActuels); 
+    recenterMap();
+}
+
+function recenterMap() {
+    if (routeLngLat.length > 0) {
+        const last = routeLngLat[routeLngLat.length - 1];
+        map.setView([last[1], last[0]], 18);
     }
+}
 
-    async function sauvegarder(lat, lng) {
-        if (!currentUser) return;
-        await _supabase.from('trajets').insert([{ latitude: lat, longitude: lng, session_id: sessionID, user_id: currentUser.id }]);
-    }
+async function deconnexion() { await _supabase.auth.signOut(); location.reload(); }
 
-    function toggleHistory() {
-        const s = document.getElementById('history-sidebar');
-        s.classList.toggle('open');
-        if (s.classList.contains('open')) chargerHistorique();
-    }
-
-    async function chargerHistorique() {
-        const list = document.getElementById('hist-list');
-        list.innerHTML = "Chargement...";
-        const septJours = new Date(); septJours.setDate(septJours.getDate() - 7);
-        
-        const { data, error } = await _supabase.from('trajets')
-            .select('session_id, created_at')
-            .gt('created_at', septJours.toISOString())
-            .order('created_at', { ascending: false });
-
-        if (error || !data) { list.innerHTML = "Erreur"; return; }
-        
-        const uniques = [...new Map(data.map(item => [item.session_id, item])).values()];
-        list.innerHTML = uniques.map(s => `
-            <div class="hist-item" onclick="afficherHistorique('${s.session_id}')">
-                <b>Trajet du ${new Date(s.created_at).toLocaleDateString()}</b><br>
-                <small>${new Date(s.created_at).toLocaleTimeString()}</small>
-            </div>
-        `).join('') || "Aucun trajet.";
-    }
-
-    async function afficherHistorique(sid) {
-        modeLecture = true; toggleHistory();
-        document.getElementById('exit-lecture').style.display = 'block';
-        const { data } = await _supabase.from('trajets').select('latitude, longitude').eq('session_id', sid).order('created_at', {ascending: true});
-        if (!data || data.length === 0) return;
-        const pts = data.map(p => [p.latitude, p.longitude]);
-        polyline.setLatLngs(pts);
-        map.fitBounds(polyline.getBounds(), { padding: [30, 30] });
-        marker.setLatLng(pts[pts.length - 1]);
-    }
-
-    function quitterLecture() {
-        modeLecture = false;
-        document.getElementById('exit-lecture').style.display = 'none';
-        polyline.setLatLngs(routeLngLat.map(p => [p[1], p[0]])); 
-        recenterMap();
-    }
-
-    function recenterMap() {
-        if (routeLngLat.length > 0) {
-            const last = routeLngLat[routeLngLat.length - 1];
-            map.setView([last[1], last[0]], 18);
-        }
-    }
-
-    async function deconnexion() { await _supabase.auth.signOut(); location.reload(); }
 </script>
 </body>
 </html>
+
 
